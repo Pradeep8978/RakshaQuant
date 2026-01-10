@@ -74,11 +74,11 @@ class Settings(BaseSettings):
     )
 
     # ===========================================
-    # Optional: Redis
+    # Optional: Redis (not required for basic functionality)
     # ===========================================
-    redis_url: str = Field(
-        default="redis://localhost:6379/0",
-        description="Redis URL for market data caching",
+    redis_url: str | None = Field(
+        default=None,
+        description="Optional Redis URL for market data caching",
     )
 
     # ===========================================
