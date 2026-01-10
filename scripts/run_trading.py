@@ -33,7 +33,7 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(f"trading_{datetime.now().strftime('%Y%m%d')}.log"),
+        logging.FileHandler(f"logs/trading_{datetime.now().strftime('%Y%m%d')}.log"),
     ]
 )
 

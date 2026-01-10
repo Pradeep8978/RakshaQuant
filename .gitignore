@@ -70,3 +70,7 @@ data/
 
 #context Docs
 AgentContext/
+
+# Logs
+logs/
+*.log
