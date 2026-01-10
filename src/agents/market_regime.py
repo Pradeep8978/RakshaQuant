@@ -85,15 +85,35 @@ def market_regime_node(state: TradingState) -> dict[str, Any]:
         # Build context for the agent
         context = _build_regime_context(indicators, market_data, regime_lessons)
         
-        # Create and run agent
-        agent = create_regime_agent()
-        
         messages = [
             SystemMessage(content=REGIME_SYSTEM_PROMPT),
             HumanMessage(content=context),
         ]
         
-        response = agent.invoke(messages)
+        # Try primary model first, fallback on rate limit
+        settings = get_settings()
+        models_to_try = [settings.groq_model_primary, settings.groq_model_fallback]
+        
+        response = None
+        for model_name in models_to_try:
+            try:
+                agent = ChatGroq(
+                    api_key=settings.groq_api_key.get_secret_value(),
+                    model_name=model_name,
+                    temperature=settings.groq_temperature,
+                    max_tokens=1024,
+                )
+                response = agent.invoke(messages)
+                logger.info(f"Regime agent using model: {model_name}")
+                break
+            except Exception as model_error:
+                if "rate_limit" in str(model_error).lower() or "429" in str(model_error):
+                    logger.warning(f"Rate limit on {model_name}, trying fallback...")
+                    continue
+                raise model_error
+        
+        if response is None:
+            raise Exception("All models rate limited")
         
         # Parse response
         result = _parse_regime_response(response.content)
@@ -109,11 +129,33 @@ def market_regime_node(state: TradingState) -> dict[str, Any]:
         
     except Exception as e:
         logger.error(f"Market Regime Agent error: {e}")
+        # Return a default trending regime based on market data
+        market_data = state.get("market_data", {})
+        avg_change = 0.0
+        for data in market_data.values():
+            if isinstance(data, dict):
+                avg_change += data.get("change_percent", 0)
+        if market_data:
+            avg_change /= len(market_data)
+        
+        # Infer regime from average market change
+        if avg_change > 0.5:
+            regime = "trending_up"
+            confidence = 0.5
+        elif avg_change < -0.5:
+            regime = "trending_down"
+            confidence = 0.5
+        else:
+            regime = "ranging"
+            confidence = 0.4
+            
+        logger.info(f"Using fallback regime: {regime} (inferred from avg change: {avg_change:.2f}%)")
+        
         return {
-            "regime": MarketRegime.UNKNOWN.value,
-            "regime_confidence": 0.0,
-            "regime_reasoning": f"Error: {str(e)}",
-            "errors": state.get("errors", []) + [f"Regime Agent: {str(e)}"],
+            "regime": regime,
+            "regime_confidence": confidence,
+            "regime_reasoning": f"Fallback: Inferred from average market change ({avg_change:.2f}%)",
+            "errors": state.get("errors", []) + [f"Regime Agent fallback: {str(e)}"],
         }
 
 
