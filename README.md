@@ -24,7 +24,7 @@ Unlike traditional algorithmic trading that relies solely on hardcoded logic, Ra
 
 ### Key Capabilities
 
-- **� Cognitive Agents**: Multi-agent system that "thinks" before it trades
+- **🤖 Cognitive Agents**: Multi-agent system that "thinks" before it trades
 - **🌐 Live Market Analysis**: Real-time multi-stock monitoring via WebSocket
 - **🛡️ Dynamic Risk Management**: Agents that can veto trades based on risk parameters
 - **📊 Professional Dashboard**: Real-time CLI interface for monitoring agent thought processes
@@ -94,8 +94,8 @@ graph TD
 | **Signal Validation**  | Reviews technical signals against the current thesis to filter out false positives.                      | `llama-3.3-70b` |
 | **Risk Manager**       | Deterministic agent that enforces position sizing, stop-losses, and kill switches.                       | _Rules Engine_  |
 
-### � Professional Dashboard
-
+### 🖥️ Professional Dashboard
+![demo](https://github.com/user-attachments/assets/6eeb132f-fd68-46b2-a753-fcd089cb5e78)
 A rich CLI dashboard built with `rich` providing real-time visibility into the system:
 
 - **Market Overview**: Live ticker for 10+ NSE stocks
@@ -205,3 +205,4 @@ All these questions can be answered by inspecting the traces in the LangSmith da
 <div align="center">
     <b>Built with ❤️ by a solo developer exploring the BFSI × AI frontier</b>
 </div>
+
