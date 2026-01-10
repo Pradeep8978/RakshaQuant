@@ -1,8 +1,11 @@
 """
-CLI Trading Dashboard
+RakshaQuant Professional Trading Dashboard
 
-Real-time terminal dashboard showing trading activity,
-agent decisions, and P&L statistics.
+A feature-rich CLI dashboard for live trading monitoring with:
+- Real-time market overview with all stocks
+- Decision reasoning transparency
+- Professional P&L tracking
+- Visual indicators and progress bars
 """
 
 import sys
@@ -17,6 +20,8 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from rich.progress import BarColumn, Progress, TextColumn, SpinnerColumn
+from rich.align import Align
 from rich import box
 
 
@@ -30,6 +35,7 @@ class TradingStats:
     # Session info
     session_start: datetime = field(default_factory=datetime.now)
     trading_mode: str = "paper"
+    data_source: str = "simulated"
     
     # Account
     starting_balance: float = 1000000.0
@@ -43,6 +49,8 @@ class TradingStats:
     # P&L
     realized_pnl: float = 0.0
     unrealized_pnl: float = 0.0
+    best_trade: float = 0.0
+    worst_trade: float = 0.0
     
     # Open positions
     open_positions: list = field(default_factory=list)
@@ -59,6 +67,14 @@ class TradingStats:
     current_regime: str = "unknown"
     regime_confidence: float = 0.0
     active_strategies: list = field(default_factory=list)
+    
+    # Market data
+    market_quotes: dict = field(default_factory=dict)  # symbol -> quote dict
+    top_movers: list = field(default_factory=list)
+    
+    # Decision info
+    last_decision_reason: str = ""
+    current_signal: dict = field(default_factory=dict)
     
     # Recent activity log
     activity_log: list = field(default_factory=list)
@@ -86,123 +102,249 @@ class TradingStats:
             "level": level,
             "message": message,
         })
-        # Keep last 10 entries
-        if len(self.activity_log) > 10:
-            self.activity_log = self.activity_log[-10:]
+        # Keep last 12 entries
+        if len(self.activity_log) > 12:
+            self.activity_log = self.activity_log[-12:]
 
 
 def create_header(stats: TradingStats) -> Panel:
-    """Create the header panel."""
+    """Create the header panel with branding."""
     
-    grid = Table.grid(expand=True)
-    grid.add_column(justify="left", ratio=1)
-    grid.add_column(justify="center", ratio=1)
-    grid.add_column(justify="right", ratio=1)
-    
-    # Mode badge
+    # Mode badges
     mode_color = "green" if stats.trading_mode == "paper" else "red"
     mode_text = f"[bold {mode_color}][[{stats.trading_mode.upper()}]][/]"
     
+    data_color = "cyan" if stats.data_source == "live" else "yellow"
+    data_text = f"[{data_color}][[{stats.data_source.upper()}]][/]"
+    
     # Session time
     elapsed = datetime.now() - stats.session_start
-    elapsed_str = str(elapsed).split('.')[0]
+    hours, remainder = divmod(int(elapsed.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    elapsed_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    
+    grid = Table.grid(expand=True)
+    grid.add_column(justify="left", ratio=1)
+    grid.add_column(justify="center", ratio=2)
+    grid.add_column(justify="right", ratio=1)
     
     grid.add_row(
-        mode_text,
-        "[bold cyan]RakshaQuant Trading Dashboard[/]",
+        f"{mode_text} {data_text}",
+        "[bold white on blue] RakshaQuant Trading Dashboard [/]",
         f"[dim]Session: {elapsed_str}[/]"
     )
     
-    return Panel(grid, style="bold white", box=box.DOUBLE)
+    return Panel(grid, style="bold", box=box.DOUBLE_EDGE, border_style="blue")
 
 
 def create_account_panel(stats: TradingStats) -> Panel:
-    """Create the account summary panel."""
+    """Create the account summary panel with visual indicators."""
     
-    table = Table(box=box.SIMPLE, show_header=False, expand=True)
-    table.add_column("Label", style="dim")
-    table.add_column("Value", justify="right")
+    content = Text()
     
-    # Balance
+    # Balance with color
     balance_color = "green" if stats.current_balance >= stats.starting_balance else "red"
-    table.add_row("Balance", f"[bold {balance_color}]Rs. {stats.current_balance:,.2f}[/]")
+    content.append("\n  Balance: ", style="dim")
+    content.append(f"Rs. {stats.current_balance:,.2f}\n", style=f"bold {balance_color}")
     
-    # P&L
+    # P&L with arrow indicator
     pnl_color = "green" if stats.total_pnl >= 0 else "red"
+    pnl_arrow = "▲" if stats.total_pnl >= 0 else "▼"
     pnl_sign = "+" if stats.total_pnl >= 0 else ""
-    table.add_row(
-        "Total P&L",
-        f"[bold {pnl_color}]{pnl_sign}Rs. {stats.total_pnl:,.2f} ({pnl_sign}{stats.pnl_percent:.2f}%)[/]"
-    )
     
-    table.add_row("Realized", f"Rs. {stats.realized_pnl:,.2f}")
-    table.add_row("Unrealized", f"Rs. {stats.unrealized_pnl:,.2f}")
+    content.append("  P&L: ", style="dim")
+    content.append(f"{pnl_arrow} ", style=pnl_color)
+    content.append(f"{pnl_sign}Rs. {stats.total_pnl:,.2f} ", style=f"bold {pnl_color}")
+    content.append(f"({pnl_sign}{stats.pnl_percent:.2f}%)\n", style=pnl_color)
     
-    return Panel(table, title="[bold]Account[/]", border_style="blue")
+    content.append("\n")
+    
+    # Realized/Unrealized breakdown
+    content.append("  Realized:   ", style="dim")
+    r_color = "green" if stats.realized_pnl >= 0 else "red"
+    content.append(f"Rs. {stats.realized_pnl:>10,.2f}\n", style=r_color)
+    
+    content.append("  Unrealized: ", style="dim")
+    u_color = "green" if stats.unrealized_pnl >= 0 else "red"
+    content.append(f"Rs. {stats.unrealized_pnl:>10,.2f}\n", style=u_color)
+    
+    # Best/Worst trade
+    if stats.total_trades > 0:
+        content.append("\n")
+        content.append("  Best Trade:  ", style="dim")
+        content.append(f"+Rs. {stats.best_trade:,.2f}\n", style="green")
+        content.append("  Worst Trade: ", style="dim")
+        content.append(f"Rs. {stats.worst_trade:,.2f}\n", style="red")
+    
+    return Panel(content, title="[bold white]💰 Account[/]", border_style="blue", box=box.ROUNDED)
 
 
 def create_trades_panel(stats: TradingStats) -> Panel:
-    """Create the trades summary panel."""
+    """Create the trades summary panel with visual win rate."""
     
-    table = Table(box=box.SIMPLE, show_header=False, expand=True)
-    table.add_column("Label", style="dim")
-    table.add_column("Value", justify="right")
+    content = Text()
     
-    table.add_row("Total Trades", f"[bold]{stats.total_trades}[/]")
-    table.add_row("Winners", f"[green]{stats.winning_trades}[/]")
-    table.add_row("Losers", f"[red]{stats.losing_trades}[/]")
+    # Trade counts
+    content.append("\n  Total Trades: ", style="dim")
+    content.append(f"{stats.total_trades}\n", style="bold white")
     
-    # Win rate with color
-    wr_color = "green" if stats.win_rate >= 50 else "yellow" if stats.win_rate >= 40 else "red"
-    table.add_row("Win Rate", f"[bold {wr_color}]{stats.win_rate:.1f}%[/]")
+    content.append("  Winners:      ", style="dim")
+    content.append(f"{stats.winning_trades}\n", style="bold green")
     
-    return Panel(table, title="[bold]Trades[/]", border_style="green")
+    content.append("  Losers:       ", style="dim")
+    content.append(f"{stats.losing_trades}\n", style="bold red")
+    
+    content.append("\n")
+    
+    # Win rate with visual bar
+    content.append("  Win Rate: ", style="dim")
+    wr = stats.win_rate
+    wr_color = "green" if wr >= 50 else "yellow" if wr >= 40 else "red"
+    content.append(f"{wr:.1f}%\n", style=f"bold {wr_color}")
+    
+    # Visual win rate bar
+    bar_width = 20
+    filled = int((wr / 100) * bar_width)
+    content.append("  [", style="dim")
+    content.append("█" * filled, style="green")
+    content.append("░" * (bar_width - filled), style="dim")
+    content.append("]\n", style="dim")
+    
+    return Panel(content, title="[bold white]📊 Trades[/]", border_style="green", box=box.ROUNDED)
+
+
+def create_regime_panel(stats: TradingStats) -> Panel:
+    """Create the market regime panel with visual indicators."""
+    
+    regime_styles = {
+        "trending_up": ("green", "🟢", "BULL"),
+        "trending_down": ("red", "🔴", "BEAR"),
+        "ranging": ("yellow", "🟡", "RANGE"),
+        "volatile": ("magenta", "🟣", "VOLATILE"),
+        "unknown": ("dim", "⚪", "UNKNOWN"),
+    }
+    
+    color, icon, label = regime_styles.get(stats.current_regime, ("dim", "⚪", "UNKNOWN"))
+    
+    content = Text()
+    content.append(f"\n  {icon} ", style=color)
+    content.append(f"{label}\n", style=f"bold {color}")
+    
+    # Confidence bar
+    conf = stats.regime_confidence
+    conf_color = "green" if conf >= 0.7 else "yellow" if conf >= 0.5 else "red"
+    bar_width = 15
+    filled = int(conf * bar_width)
+    
+    content.append("\n  Confidence: ", style="dim")
+    content.append(f"{conf:.0%}\n", style=f"bold {conf_color}")
+    content.append("  [", style="dim")
+    content.append("█" * filled, style=conf_color)
+    content.append("░" * (bar_width - filled), style="dim")
+    content.append("]\n", style="dim")
+    
+    # Active strategies
+    content.append("\n  Strategies:\n", style="dim")
+    if stats.active_strategies:
+        for strat in stats.active_strategies[:3]:
+            content.append(f"    • {strat}\n", style="cyan")
+    else:
+        content.append("    (none active)\n", style="dim italic")
+    
+    return Panel(content, title="[bold white]📈 Market Regime[/]", border_style="cyan", box=box.ROUNDED)
+
+
+def create_market_overview(stats: TradingStats) -> Panel:
+    """Create market overview showing all monitored stocks."""
+    
+    if not stats.market_quotes:
+        content = Text("\n  Waiting for market data...\n", style="dim italic")
+        return Panel(content, title="[bold white]🌐 Market Overview[/]", border_style="yellow", box=box.ROUNDED)
+    
+    table = Table(box=box.SIMPLE, show_header=True, expand=True, padding=(0, 1))
+    table.add_column("Symbol", style="bold", width=10)
+    table.add_column("LTP", justify="right", width=10)
+    table.add_column("Chg%", justify="right", width=8)
+    table.add_column("", width=4)  # Trend indicator
+    
+    # Sort by change percent
+    sorted_quotes = sorted(
+        stats.market_quotes.items(),
+        key=lambda x: x[1].get("change_percent", 0),
+        reverse=True,
+    )
+    
+    for symbol, quote in sorted_quotes[:8]:  # Top 8 stocks
+        ltp = quote.get("last_price", 0)
+        chg = quote.get("change_percent", 0)
+        
+        chg_color = "green" if chg > 0 else "red" if chg < 0 else "white"
+        trend = "▲" if chg > 0 else "▼" if chg < 0 else "─"
+        
+        table.add_row(
+            symbol,
+            f"Rs.{ltp:,.0f}",
+            f"[{chg_color}]{chg:+.2f}%[/]",
+            f"[{chg_color}]{trend}[/]",
+        )
+    
+    return Panel(table, title="[bold white]🌐 Market Overview[/]", border_style="yellow", box=box.ROUNDED)
+
+
+def create_decision_panel(stats: TradingStats) -> Panel:
+    """Create panel showing current decision reasoning."""
+    
+    content = Text()
+    
+    if stats.current_signal:
+        sig = stats.current_signal
+        signal_type = sig.get("signal_type", "N/A")
+        symbol = sig.get("symbol", "N/A")
+        strategy = sig.get("strategy", "N/A")
+        confidence = sig.get("confidence", 0)
+        
+        signal_color = "green" if signal_type == "BUY" else "red"
+        
+        content.append("\n  Current Signal:\n", style="dim")
+        content.append(f"    {signal_type} ", style=f"bold {signal_color}")
+        content.append(f"{symbol}\n", style="bold white")
+        
+        content.append("    Strategy: ", style="dim")
+        content.append(f"{strategy}\n", style="cyan")
+        
+        content.append("    Confidence: ", style="dim")
+        content.append(f"{confidence:.0%}\n", style="bold")
+    else:
+        content.append("\n  No active signal\n", style="dim italic")
+    
+    if stats.last_decision_reason:
+        content.append("\n  Decision Reason:\n", style="dim")
+        # Wrap long text
+        reason = stats.last_decision_reason[:100]
+        content.append(f"    {reason}\n", style="italic")
+    
+    return Panel(content, title="[bold white]🧠 AI Decision[/]", border_style="magenta", box=box.ROUNDED)
 
 
 def create_agent_panel(stats: TradingStats) -> Panel:
     """Create the agent activity panel."""
     
-    table = Table(box=box.SIMPLE, show_header=False, expand=True)
-    table.add_column("Label", style="dim")
-    table.add_column("Value", justify="right")
+    table = Table(box=box.SIMPLE, show_header=False, expand=True, padding=(0, 1))
+    table.add_column("Metric", style="dim", width=16)
+    table.add_column("Value", justify="right", width=6)
     
     table.add_row("Cycles Run", f"[bold]{stats.cycles_run}[/]")
-    table.add_row("Signals Generated", f"{stats.signals_generated}")
+    table.add_row("Signals Gen", f"[white]{stats.signals_generated}[/]")
     table.add_row("Validated", f"[green]{stats.signals_validated}[/]")
     table.add_row("Rejected", f"[red]{stats.signals_rejected}[/]")
     table.add_row("Risk Blocked", f"[yellow]{stats.trades_risk_rejected}[/]")
     
-    return Panel(table, title="[bold]Agent Activity[/]", border_style="magenta")
-
-
-def create_regime_panel(stats: TradingStats) -> Panel:
-    """Create the market regime panel."""
+    # Approval rate
+    if stats.signals_generated > 0:
+        approval_rate = (stats.signals_validated / stats.signals_generated) * 100
+        table.add_row("Approval Rate", f"[cyan]{approval_rate:.0f}%[/]")
     
-    regime_colors = {
-        "trending_up": "green",
-        "trending_down": "red",
-        "ranging": "yellow",
-        "volatile": "magenta",
-        "unknown": "dim",
-    }
-    
-    color = regime_colors.get(stats.current_regime, "white")
-    
-    content = Text()
-    content.append(f"\n  Regime: ", style="dim")
-    content.append(f"{stats.current_regime.upper()}\n", style=f"bold {color}")
-    content.append(f"  Confidence: ", style="dim")
-    content.append(f"{stats.regime_confidence:.0%}\n", style="bold")
-    content.append(f"\n  Strategies: ", style="dim")
-    
-    if stats.active_strategies:
-        content.append(", ".join(stats.active_strategies), style="cyan")
-    else:
-        content.append("None", style="dim")
-    
-    content.append("\n")
-    
-    return Panel(content, title="[bold]Market Regime[/]", border_style="cyan")
+    return Panel(table, title="[bold white]🤖 Agent Activity[/]", border_style="magenta", box=box.ROUNDED)
 
 
 def create_positions_panel(stats: TradingStats) -> Panel:
@@ -210,31 +352,32 @@ def create_positions_panel(stats: TradingStats) -> Panel:
     
     if not stats.open_positions:
         content = Text("\n  No open positions\n", style="dim italic")
-        return Panel(content, title="[bold]Open Positions[/]", border_style="yellow")
+        return Panel(content, title="[bold white]📋 Open Positions[/]", border_style="white", box=box.ROUNDED)
     
-    table = Table(box=box.SIMPLE, expand=True)
-    table.add_column("Symbol", style="bold")
-    table.add_column("Side")
-    table.add_column("Qty", justify="right")
-    table.add_column("Entry", justify="right")
-    table.add_column("P&L", justify="right")
+    table = Table(box=box.SIMPLE, expand=True, show_header=True, padding=(0, 1))
+    table.add_column("Symbol", style="bold", width=10)
+    table.add_column("Side", width=5)
+    table.add_column("Qty", justify="right", width=5)
+    table.add_column("Entry", justify="right", width=12)
+    table.add_column("P&L", justify="right", width=12)
     
-    for pos in stats.open_positions[:5]:  # Show max 5
+    for pos in stats.open_positions[:5]:
         pnl = pos.get("pnl", 0)
         pnl_color = "green" if pnl >= 0 else "red"
         pnl_sign = "+" if pnl >= 0 else ""
         
-        side_color = "green" if pos.get("side") == "BUY" else "red"
+        side = pos.get("side", "N/A")
+        side_color = "green" if side == "BUY" else "red"
         
         table.add_row(
             pos.get("symbol", "N/A"),
-            f"[{side_color}]{pos.get('side', 'N/A')}[/]",
+            f"[{side_color}]{side}[/]",
             str(pos.get("qty", 0)),
-            f"Rs. {pos.get('entry', 0):,.2f}",
-            f"[{pnl_color}]{pnl_sign}Rs. {pnl:,.2f}[/]"
+            f"Rs.{pos.get('entry', 0):,.2f}",
+            f"[{pnl_color}]{pnl_sign}Rs.{pnl:,.2f}[/]",
         )
     
-    return Panel(table, title="[bold]Open Positions[/]", border_style="yellow")
+    return Panel(table, title="[bold white]📋 Open Positions[/]", border_style="white", box=box.ROUNDED)
 
 
 def create_activity_panel(stats: TradingStats) -> Panel:
@@ -242,27 +385,28 @@ def create_activity_panel(stats: TradingStats) -> Panel:
     
     if not stats.activity_log:
         content = Text("\n  Waiting for activity...\n", style="dim italic")
-        return Panel(content, title="[bold]Activity Log[/]", border_style="white")
+        return Panel(content, title="[bold white]📜 Activity Log[/]", border_style="white", box=box.ROUNDED)
     
     lines = []
-    for entry in stats.activity_log[-8:]:  # Last 8 entries
-        level_color = {
-            "INFO": "blue",
-            "SUCCESS": "green",
-            "WARNING": "yellow",
-            "ERROR": "red",
-            "TRADE": "cyan",
-        }.get(entry["level"], "white")
-        
-        lines.append(f"[dim]{entry['time']}[/] [{level_color}]{entry['level']:7}[/] {entry['message']}")
+    level_styles = {
+        "INFO": ("blue", "ℹ"),
+        "SUCCESS": ("green", "✓"),
+        "WARNING": ("yellow", "⚠"),
+        "ERROR": ("red", "✗"),
+        "TRADE": ("cyan", "💹"),
+    }
+    
+    for entry in stats.activity_log[-10:]:
+        color, icon = level_styles.get(entry["level"], ("white", "•"))
+        lines.append(f"[dim]{entry['time']}[/] [{color}]{icon}[/] {entry['message']}")
     
     content = "\n".join(lines)
     
-    return Panel(content, title="[bold]Activity Log[/]", border_style="white")
+    return Panel(content, title="[bold white]📜 Activity Log[/]", border_style="white", box=box.ROUNDED)
 
 
 def create_dashboard_layout(stats: TradingStats) -> Layout:
-    """Create the full dashboard layout."""
+    """Create the full professional dashboard layout."""
     
     layout = Layout()
     
@@ -270,37 +414,44 @@ def create_dashboard_layout(stats: TradingStats) -> Layout:
     layout.split_column(
         Layout(name="header", size=3),
         Layout(name="body"),
-        Layout(name="footer", size=12),
+        Layout(name="footer", size=14),
     )
     
-    # Body split
+    # Body split into 3 columns
     layout["body"].split_row(
-        Layout(name="left"),
-        Layout(name="middle"),
-        Layout(name="right"),
+        Layout(name="left", ratio=1),
+        Layout(name="center", ratio=1),
+        Layout(name="right", ratio=1),
     )
     
-    # Left column
+    # Left column: Account + Trades
     layout["left"].split_column(
         Layout(name="account"),
         Layout(name="trades"),
     )
     
-    # Middle column
-    layout["middle"].split_column(
-        Layout(name="regime"),
+    # Center column: Market Overview + Positions
+    layout["center"].split_column(
+        Layout(name="market"),
         Layout(name="positions"),
     )
     
-    # Right column - agent activity
-    layout["right"].update(create_agent_panel(stats))
+    # Right column: Regime + Decision + Agent
+    layout["right"].split_column(
+        Layout(name="regime"),
+        Layout(name="decision"),
+        Layout(name="agent"),
+    )
     
     # Populate panels
     layout["header"].update(create_header(stats))
     layout["account"].update(create_account_panel(stats))
     layout["trades"].update(create_trades_panel(stats))
-    layout["regime"].update(create_regime_panel(stats))
+    layout["market"].update(create_market_overview(stats))
     layout["positions"].update(create_positions_panel(stats))
+    layout["regime"].update(create_regime_panel(stats))
+    layout["decision"].update(create_decision_panel(stats))
+    layout["agent"].update(create_agent_panel(stats))
     layout["footer"].update(create_activity_panel(stats))
     
     return layout
@@ -314,17 +465,18 @@ class TradingDashboard:
         self.live = None
         self.running = False
     
-    def start(self, balance: float = 1000000.0, mode: str = "paper"):
+    def start(self, balance: float = 1000000.0, mode: str = "paper", data_source: str = "simulated"):
         """Start the dashboard."""
         self.stats.starting_balance = balance
         self.stats.current_balance = balance
         self.stats.trading_mode = mode
+        self.stats.data_source = data_source
         self.stats.session_start = datetime.now()
         self.running = True
         
         self.stats.log_activity("Dashboard started", "INFO")
-        self.stats.log_activity(f"Trading mode: {mode.upper()}", "INFO")
-        self.stats.log_activity(f"Starting balance: Rs. {balance:,.2f}", "INFO")
+        self.stats.log_activity(f"Mode: {mode.upper()}", "INFO")
+        self.stats.log_activity(f"Data: {data_source.upper()}", "INFO")
     
     def update_regime(self, regime: str, confidence: float, strategies: list):
         """Update market regime info."""
@@ -333,24 +485,41 @@ class TradingDashboard:
         self.stats.active_strategies = strategies
         self.stats.log_activity(f"Regime: {regime} ({confidence:.0%})", "INFO")
     
+    def update_market_data(self, quotes: dict):
+        """Update market quotes."""
+        self.stats.market_quotes = quotes
+    
+    def set_current_signal(self, signal_type: str, symbol: str, strategy: str, confidence: float):
+        """Set the current trading signal."""
+        self.stats.current_signal = {
+            "signal_type": signal_type,
+            "symbol": symbol,
+            "strategy": strategy,
+            "confidence": confidence,
+        }
+    
+    def set_decision_reason(self, reason: str):
+        """Set the decision reasoning."""
+        self.stats.last_decision_reason = reason
+    
     def log_signal(self, symbol: str, signal_type: str, strategy: str, validated: bool):
         """Log a signal."""
         self.stats.signals_generated += 1
         if validated:
             self.stats.signals_validated += 1
-            self.stats.log_activity(f"Signal VALIDATED: {signal_type} {symbol} [{strategy}]", "SUCCESS")
+            self.stats.log_activity(f"✓ {signal_type} {symbol} [{strategy}]", "SUCCESS")
         else:
             self.stats.signals_rejected += 1
-            self.stats.log_activity(f"Signal REJECTED: {signal_type} {symbol}", "WARNING")
+            self.stats.log_activity(f"✗ {signal_type} {symbol} rejected", "WARNING")
     
     def log_trade(self, symbol: str, side: str, qty: int, price: float, approved: bool):
         """Log a trade decision."""
         if approved:
             self.stats.trades_approved += 1
-            self.stats.log_activity(f"TRADE: {side} {qty} {symbol} @ Rs. {price:,.2f}", "TRADE")
+            self.stats.log_activity(f"TRADE: {side} {qty}x {symbol} @ Rs.{price:,.2f}", "TRADE")
         else:
             self.stats.trades_risk_rejected += 1
-            self.stats.log_activity(f"Trade BLOCKED by risk: {side} {symbol}", "WARNING")
+            self.stats.log_activity(f"BLOCKED: {side} {symbol} by risk", "WARNING")
     
     def add_position(self, symbol: str, side: str, qty: int, entry_price: float):
         """Add an open position."""
@@ -368,61 +537,72 @@ class TradingDashboard:
         self.stats.realized_pnl += pnl
         self.stats.current_balance += pnl
         
+        # Track best/worst
+        if pnl > self.stats.best_trade:
+            self.stats.best_trade = pnl
+        if pnl < self.stats.worst_trade:
+            self.stats.worst_trade = pnl
+        
         if pnl >= 0:
             self.stats.winning_trades += 1
-            self.stats.log_activity(f"Trade CLOSED: +Rs. {pnl:,.2f}", "SUCCESS")
+            self.stats.log_activity(f"Trade closed: +Rs.{pnl:,.2f}", "SUCCESS")
         else:
             self.stats.losing_trades += 1
-            self.stats.log_activity(f"Trade CLOSED: Rs. {pnl:,.2f}", "ERROR")
+            self.stats.log_activity(f"Trade closed: Rs.{pnl:,.2f}", "ERROR")
     
     def increment_cycle(self):
         """Increment cycle counter."""
         self.stats.cycles_run += 1
-        self.stats.log_activity(f"Trading cycle #{self.stats.cycles_run} completed", "INFO")
+        self.stats.log_activity(f"Cycle #{self.stats.cycles_run} complete", "INFO")
     
     def render(self) -> Layout:
         """Render the dashboard."""
         return create_dashboard_layout(self.stats)
-    
-    def run_live(self, refresh_rate: float = 0.5):
-        """Run the dashboard with live updates."""
-        with Live(self.render(), console=console, refresh_per_second=int(1/refresh_rate)) as live:
-            self.live = live
-            try:
-                while self.running:
-                    live.update(self.render())
-                    time.sleep(refresh_rate)
-            except KeyboardInterrupt:
-                self.running = False
-                console.print("\n[yellow]Dashboard stopped[/]")
 
 
 def demo_dashboard():
     """Demo the dashboard with simulated data."""
     
     dashboard = TradingDashboard()
-    dashboard.start(balance=1000000.0, mode="paper")
+    dashboard.start(balance=1000000.0, mode="paper", data_source="simulated")
     
-    console.print("[bold green]Starting RakshaQuant Trading Dashboard Demo...[/]\n")
+    # Sample market data
+    sample_quotes = {
+        "RELIANCE": {"last_price": 2485.50, "change_percent": 1.25},
+        "TCS": {"last_price": 4150.00, "change_percent": -0.85},
+        "HDFCBANK": {"last_price": 1680.25, "change_percent": 0.45},
+        "INFY": {"last_price": 1845.00, "change_percent": -1.20},
+        "SBIN": {"last_price": 785.50, "change_percent": 2.15},
+        "ITC": {"last_price": 465.00, "change_percent": 0.65},
+        "ICICIBANK": {"last_price": 1275.00, "change_percent": -0.35},
+        "BHARTIARTL": {"last_price": 1620.00, "change_percent": -1.75},
+    }
+    
+    console.print("[bold green]Starting Professional Dashboard Demo...[/]\n")
     console.print("[dim]Press Ctrl+C to exit[/]\n")
     time.sleep(1)
     
     with Live(dashboard.render(), console=console, refresh_per_second=2) as live:
-        dashboard.live = live
         
         try:
-            # Simulate activity
+            dashboard.update_market_data(sample_quotes)
+            
             time.sleep(2)
-            dashboard.update_regime("trending_up", 0.70, ["momentum", "trend_following"])
+            dashboard.update_regime("trending_up", 0.72, ["momentum", "trend_following"])
             live.update(dashboard.render())
             
             time.sleep(2)
-            dashboard.log_signal("RELIANCE", "BUY", "trend_following", True)
+            dashboard.set_current_signal("BUY", "SBIN", "momentum", 0.68)
+            dashboard.set_decision_reason("Strong upward momentum (+2.15%) with RSI oversold bounce")
             live.update(dashboard.render())
             
             time.sleep(2)
-            dashboard.log_trade("RELIANCE", "BUY", 10, 2500.0, True)
-            dashboard.add_position("RELIANCE", "BUY", 10, 2500.0)
+            dashboard.log_signal("SBIN", "BUY", "momentum", True)
+            live.update(dashboard.render())
+            
+            time.sleep(2)
+            dashboard.log_trade("SBIN", "BUY", 50, 785.50, True)
+            dashboard.add_position("SBIN", "BUY", 50, 785.50)
             live.update(dashboard.render())
             
             time.sleep(2)
@@ -430,11 +610,10 @@ def demo_dashboard():
             live.update(dashboard.render())
             
             time.sleep(3)
-            dashboard.close_trade(500.0)
+            dashboard.close_trade(750.0)
             dashboard.stats.open_positions = []
             live.update(dashboard.render())
             
-            # Keep running
             while True:
                 time.sleep(0.5)
                 live.update(dashboard.render())

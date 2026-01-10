@@ -89,8 +89,9 @@ async def run_live_trading():
     settings = get_settings()
     
     # Initialize dashboard
+    data_source = "live" if is_market_open() else "simulated"
     dashboard = TradingDashboard()
-    dashboard.start(balance=1000000.0, mode=settings.trading_mode)
+    dashboard.start(balance=1000000.0, mode=settings.trading_mode, data_source=data_source)
     
     # Setup tracing
     tracing_enabled = setup_tracing()
@@ -147,6 +148,9 @@ async def run_live_trading():
                 
                 quotes = market_manager.get_all_quotes()
                 
+                # Update dashboard with market data
+                dashboard.update_market_data({s: q.to_dict() for s, q in quotes.items()})
+                
                 # Find trading candidates (significant movers)
                 candidates = market_manager.get_trading_candidates(min_change=0.3)
                 
@@ -174,6 +178,21 @@ async def run_live_trading():
                 top_candidate = candidates[0]
                 indicators = quote_to_indicators(top_candidate)
                 signals = signal_engine.generate_signals(indicators)
+                
+                # Set current signal info for dashboard
+                if signals:
+                    sig = signals[0]
+                    dashboard.set_current_signal(
+                        sig.signal_type.value,
+                        sig.symbol,
+                        sig.strategy.value,
+                        sig.confidence,
+                    )
+                    
+                    # Generate decision reason
+                    direction = "bullish" if top_candidate.is_bullish else "bearish"
+                    reason = f"{direction.title()} momentum ({top_candidate.change_percent:+.2f}%) with {sig.strategy.value} strategy"
+                    dashboard.set_decision_reason(reason)
                 
                 dashboard.stats.signals_generated += len(signals)
                 
