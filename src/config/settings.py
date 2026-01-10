@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     dhan_access_token: SecretStr = Field(..., description="DhanHQ access token")
     dhan_base_url: str = Field(
         default="https://api.dhan.co/v2",
-        description="DhanHQ API base URL (use sandbox.dhan.co for testing)",
+        description="DhanHQ API base URL (use https://api.dhan.co/v2 for live)",
     )
 
     # ===========================================
