@@ -4,11 +4,12 @@
 
 ### Agentic Paper Trading System for NSE
 
-_My first journey into building AI-powered financial systems_
+_Where Large Language Models Meet Financial Markets_
 
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Powered-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![LangSmith](https://img.shields.io/badge/LangSmith-Observable-green.svg)](https://smith.langchain.com)
+[![Groq](https://img.shields.io/badge/Groq-Fast%20Inference-purple.svg)](https://groq.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -17,103 +18,97 @@ _My first journey into building AI-powered financial systems_
 
 ## 🎯 About This Project
 
-**RakshaQuant** (रक्षा = Protection in Sanskrit) is an agentic paper trading system designed for the Indian NSE market. Built as a solo developer project to explore the intersection of **Large Language Models** and **Financial Technology (BFSI)**.
+**RakshaQuant** (रक्षा = Protection in Sanskrit) is an autonomous agentic trading system designed for the Indian NSE market. It leverages **LangGraph** to orchestrate a team of specialized AI agents that analyze market data, formulate strategies, validate signals, and manage risk in real-time.
 
-This project represents my first deep dive into:
+Unlike traditional algorithmic trading that relies solely on hardcoded logic, RakshaQuant introduces **cognitive flexibility**—using LLMs to reason about market regimes (bull/bear/ranging) and adapt its strategies accordingly.
 
-- 🤖 **Multi-agent orchestration** with LangGraph
-- 📊 **Algorithmic trading concepts** and technical analysis
-- 🔍 **LLM observability** with LangSmith
-- 🧠 **Learning feedback loops** that improve over time
+### Key Capabilities
 
-> _"The goal isn't just to build a trading bot, but to understand how AI agents can reason about complex, real-time financial decisions."_
+- **� Cognitive Agents**: Multi-agent system that "thinks" before it trades
+- **🌐 Live Market Analysis**: Real-time multi-stock monitoring via WebSocket
+- **🛡️ Dynamic Risk Management**: Agents that can veto trades based on risk parameters
+- **📊 Professional Dashboard**: Real-time CLI interface for monitoring agent thought processes
+- **📝 Self-Improving Memory**: Learns from past mistakes using semantic memory
 
 ---
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         RakshaQuant Architecture                     │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐ │
-│   │  Market     │───▶│  Technical  │───▶│  Signal Generation      │ │
-│   │  Data Feed  │    │  Indicators │    │  (4 Strategies)         │ │
-│   └─────────────┘    └─────────────┘    └───────────┬─────────────┘ │
-│         │                                           │               │
-│         ▼                                           ▼               │
-│   ┌─────────────────────────────────────────────────────────────┐   │
-│   │                    LangGraph Agent Orchestration             │   │
-│   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │   │
-│   │  │ Market Regime│─▶│  Strategy    │─▶│   Signal     │       │   │
-│   │  │    Agent     │  │  Selection   │  │  Validation  │       │   │
-│   │  │   (LLM)      │  │   Agent      │  │    Agent     │       │   │
-│   │  └──────────────┘  └──────────────┘  └──────┬───────┘       │   │
-│   │                                             │                │   │
-│   │                                    ┌────────▼────────┐       │   │
-│   │                                    │ Risk & Compliance│      │   │
-│   │                                    │  (Deterministic) │      │   │
-│   │                                    └────────┬─────────┘      │   │
-│   └─────────────────────────────────────────────┼────────────────┘   │
-│                                                 │                    │
-│         ┌───────────────────────────────────────┼──────────────┐     │
-│         │                                       ▼              │     │
-│         │   ┌─────────────┐         ┌──────────────────────┐  │     │
-│         │   │   Memory    │◀────────│   Trade Execution    │  │     │
-│         │   │  Database   │         │   (Paper Trading)    │  │     │
-│         │   └──────┬──────┘         └──────────────────────┘  │     │
-│         │          │                                          │     │
-│         │          ▼                                          │     │
-│         │   ┌─────────────┐         ┌──────────────────────┐  │     │
-│         │   │  Mistake    │────────▶│    Trade Journal     │  │     │
-│         │   │ Classifier  │         │   (PostgreSQL)       │  │     │
-│         │   └─────────────┘         └──────────────────────┘  │     │
-│         │          Feedback & Learning Loop                   │     │
-│         └─────────────────────────────────────────────────────┘     │
-│                                                                      │
-│   ┌──────────────────────────────────────────────────────────────┐  │
-│   │                    LangSmith Observability                    │  │
-│   │        Full trace of every agent decision for debugging       │  │
-│   └──────────────────────────────────────────────────────────────┘  │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+RakshaQuant uses a **hierarchical agent graph** where specialized agents collaborate to make trading decisions.
+
+```mermaid
+graph TD
+    %% Styling
+    classDef market fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef agent fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef risk fill:#ffebee,stroke:#c62828,stroke-width:2px;
+    classDef exec fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
+    classDef memory fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,stroke-dasharray: 5 5;
+
+    subgraph "🌐 Market Data Layer"
+        WS[WebSocket Manager] -->|Real-time Ticks| MQ[Market Quotes]
+        SIM[Simulator] -->|Fallback| MQ
+        MQ -->|OHLCV Data| TECH[Technical Analysis]
+        TECH -->|Indicators| SIG_ENG[Signal Engine]
+    end
+    class WS,SIM,MQ,TECH,SIG_ENG market
+
+    subgraph "🧠 Agentic Cognitive Layer (LangGraph)"
+        SIG_ENG -->|Alerts| REGIME[Market Regime Agent]
+
+        REGIME -->|Context: Bull/Bear| STRATEGY[Strategy Selection Agent]
+
+        STRATEGY -->|Active Strategies| SIGNAL[Signal Validation Agent]
+
+        SIGNAL -->|Validated Trade| RISK[Risk Management Agent]
+    end
+    class REGIME,STRATEGY,SIGNAL agent
+    class RISK risk
+
+    subgraph "⚡ Execution Layer"
+        RISK -->|Approved| ORDER[Order Manager]
+        ORDER -->|Execute| DHAN[DhanHQ API]
+    end
+    class ORDER,DHAN exec
+
+    subgraph "📚 Learning System"
+        DHAN -->|Trade Result| JOURNAL[Trade Journal]
+        JOURNAL -->|Analysis| MISTAKE[Mistake Classifier]
+        MISTAKE -->|Lessons| VECTOR[Vector DB Memory]
+        VECTOR -.->|Injection| REGIME
+        VECTOR -.->|Injection| STRATEGY
+    end
+    class JOURNAL,MISTAKE,VECTOR memory
 ```
 
 ---
 
 ## ✨ Features
 
-### 🤖 Multi-Agent Decision Making
+### 🤖 The Agent Team
 
-| Agent                  | Purpose                                        | Technology          |
-| ---------------------- | ---------------------------------------------- | ------------------- |
-| **Market Regime**      | Classifies market as trending/ranging/volatile | LLM (Groq)          |
-| **Strategy Selection** | Chooses active strategies based on regime      | LLM (Groq)          |
-| **Signal Validation**  | Filters low-quality signals                    | LLM (Groq)          |
-| **Risk & Compliance**  | Enforces position limits, kill switch          | Deterministic Rules |
+| Agent                  | Responsibilities                                                                                         | Model (Groq)    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | --------------- |
+| **Market Regime**      | Analyzes volatility and price action to determine if market is Trending (Up/Down), Ranging, or Volatile. | `llama-3.3-70b` |
+| **Strategy Selection** | Selects the best trading strategies (Momentum, Mean Reversion, etc.) for the current regime.             | `llama-3.3-70b` |
+| **Signal Validation**  | Reviews technical signals against the current thesis to filter out false positives.                      | `llama-3.3-70b` |
+| **Risk Manager**       | Deterministic agent that enforces position sizing, stop-losses, and kill switches.                       | _Rules Engine_  |
 
-### 📈 Trading Strategies
+### � Professional Dashboard
 
-- **Momentum**: Rides strong directional moves
-- **Mean Reversion**: Trades oversold/overbought conditions
-- **Breakout**: Captures volatility expansions
-- **Trend Following**: Follows established trends with ADX confirmation
+A rich CLI dashboard built with `rich` providing real-time visibility into the system:
 
-### 🧠 Learning Feedback Loop
+- **Market Overview**: Live ticker for 10+ NSE stocks
+- **Agent Reasoning**: See _why_ the AI made a decision
+- **P&L Tracking**: Real-time unrealized/realized profit monitoring
+- **Visual Indicators**: Progress bars for trade confidence and win rates
 
-- Analyzes trade outcomes (MAE/MFE, efficiency)
-- Classifies mistakes using LLM + rules
-- Stores lessons with time-decay relevance
-- Injects past lessons into agent context
+### 🛡️ Robust Engineering
 
-### 🛡️ Safety Features
-
-- **Kill Switch**: Halts trading on daily loss limit
-- **Position Limits**: Max 10% per position
-- **Daily Trade Cap**: Configurable max trades
-- **Trading Hours**: Respects NSE market hours
-- **Paper-First**: Default mode uses simulated funds
+- **Live/Sim Switch**: Automatically switches to simulated data when markets are closed
+- **Rate Limit Handling**: Smart fallback to smaller models (`llama-3.1-8b`) when API limits are hit
+- **Confidence Scoring**: Every decision comes with a confidence score (0-100%)
+- **Observability**: Full decision traces synced to LangSmith
 
 ---
 
@@ -121,9 +116,10 @@ This project represents my first deep dive into:
 
 ### Prerequisites
 
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv) package manager
-- PostgreSQL database (or free cloud: [Neon](https://neon.tech))
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+- [DhanHQ Account](https://dhan.co) (for API access)
+- [Groq API Key](https://console.groq.com) (for LLM inference)
 
 ### Installation
 
@@ -132,34 +128,28 @@ This project represents my first deep dive into:
 git clone https://github.com/yourusername/RakshaQuant.git
 cd RakshaQuant
 
-# Install dependencies
+# Install dependencies with uv (fast!)
 uv sync
 
-# Copy environment template
+# Configure environment
 cp .env.example .env
+# Edit .env and add your API keys
 ```
 
-### Configuration
+### Running the System
 
-Edit `.env` with your API keys:
-
-| Service        | Get API Key                                                 | Free Tier       |
-| -------------- | ----------------------------------------------------------- | --------------- |
-| **Groq**       | [console.groq.com/keys](https://console.groq.com/keys)      | ✅ Free         |
-| **DhanHQ**     | [developer.dhan.co](https://developer.dhan.co)              | ✅ Sandbox      |
-| **LangSmith**  | [smith.langchain.com](https://smith.langchain.com/settings) | ✅ 5K traces/mo |
-| **PostgreSQL** | [neon.tech](https://neon.tech)                              | ✅ 0.5GB free   |
-
-### Run Demo
+**1. Live Trading System (Recommended)**
+Runs the full multi-agent loop with the professional dashboard.
 
 ```bash
-uv run python scripts/run_trading.py
+uv run python scripts/run_live_trading.py
 ```
 
-### Run Tests
+**2. Test Connection**
+Verify your API credentials are working.
 
 ```bash
-.venv\Scripts\python.exe -m pytest tests/ -v
+uv run python scripts/test_dhan_connection.py
 ```
 
 ---
@@ -169,31 +159,22 @@ uv run python scripts/run_trading.py
 ```
 RakshaQuant/
 ├── src/
-│   ├── agents/              # LangGraph agents
-│   │   ├── graph.py         # Agent orchestration
-│   │   ├── market_regime.py # Regime classification
+│   ├── agents/              # 🧠 The "Brain" of the system
+│   │   ├── market_regime.py
 │   │   ├── strategy_selection.py
 │   │   ├── signal_validation.py
 │   │   └── risk_compliance.py
-│   ├── market/              # Market data & signals
-│   │   ├── data_feed.py     # WebSocket ingestion
-│   │   ├── indicators.py    # Technical indicators
-│   │   └── signals.py       # Strategy signal engine
-│   ├── execution/           # Trade execution
-│   │   ├── adapter.py       # DhanHQ integration
-│   │   └── journal.py       # Trade journal (PostgreSQL)
-│   ├── memory/              # Learning system
-│   │   ├── analyzer.py      # Outcome analysis
-│   │   ├── classifier.py    # Mistake classification
-│   │   ├── database.py      # Memory storage
-│   │   └── injection.py     # Context injection
-│   └── observability/       # LangSmith integration
-│       └── tracing.py
-├── tests/                   # Unit tests
-├── scripts/
-│   └── run_trading.py       # Entry point
-├── logs/                    # Trading logs (gitignored)
-├── pyproject.toml
+│   ├── market/              # 🌐 Market Data Handling
+│   │   ├── manager.py       # Live/Sim auto-switcher
+│   │   ├── websocket_feed.py# DhanHQ WebSocket client
+│   │   └── simulated_data.py# Realistic market simulator
+│   ├── dashboard/           # 📊 UI Components
+│   │   └── cli.py           # Rich terminal dashboard
+│   ├── memory/              # 📚 Learning System
+│   └── config/              # ⚙️ Configuration
+├── scripts/                 # 🏃‍♂️ Entry Points
+│   └── run_live_trading.py  # Main application
+├── tests/                   # 🧪 Unit Tests
 └── README.md
 ```
 
@@ -201,75 +182,26 @@ RakshaQuant/
 
 ## 🔍 Observability
 
-Every agent decision is traced in **LangSmith**:
+RakshaQuant is instrumented with **LangSmith** for full observability. You can trace every thought process of the agents:
 
-```
-LangGraph (5.80s)
-├── market_regime (2.85s)
-│   └── ChatGroq llama-3.3-70b-versatile
-├── should_continue_after_regime
-├── strategy_selection (1.65s)
-│   └── ChatGroq llama-3.3-70b-versatile
-├── signal_validation (1.16s)
-│   └── ChatGroq llama-3.3-70b-versatile
-├── should_continue_after_validation
-└── risk_compliance (0.00s)
-```
+> _"Why did the agent reject the BUY signal for TCS?"_ > _"What market regime did it detect before entering the trade?"_
 
-View traces at: [smith.langchain.com](https://smith.langchain.com)
-
----
-
-## 🎓 What I Learned
-
-Building RakshaQuant taught me:
-
-1. **LangGraph Patterns**: StateGraph, conditional edges, checkpointing
-2. **Agent Design**: When to use LLM vs deterministic rules
-3. **Financial Domain**: Technical indicators, risk management, trading psychology
-4. **Observability**: The importance of tracing every decision for debugging
-5. **Memory Systems**: Time-decay relevance, context injection
+All these questions can be answered by inspecting the traces in the LangSmith dashboard.
 
 ---
 
 ## ⚠️ Disclaimer
 
-> **This is a learning project for educational purposes only.**
+> **EDUCATIONAL PURPOSES ONLY**
 >
-> - Not financial advice
-> - Paper trading only (no real money by default)
-> - Past performance doesn't guarantee future results
-> - Always consult a financial advisor for real investments
-
----
-
-## 🛣️ Roadmap
-
-- [ ] Live market data integration
-- [ ] Backtesting framework
-- [ ] Multi-symbol portfolio management
-- [ ] Options trading support
-- [ ] Telegram/Discord alerts
-- [ ] Web dashboard
-
----
-
-## 🤝 Contributing
-
-This is a personal learning project, but suggestions and feedback are welcome! Feel free to open issues or PRs.
-
----
-
-## 📄 License
-
-MIT License - feel free to use this for your own learning journey!
+> RakshaQuant is a research project to explore Agentic AI in finance. It is **not** financial advice.
+>
+> - The default mode is **PAPER TRADING**.
+> - Do not connect to a live trading account with real funds unless you fully understand the risks.
+> - Algorithmic trading involves significant risk of loss.
 
 ---
 
 <div align="center">
-
-**Built with ❤️ by a solo developer exploring the BFSI × AI frontier**
-
-_RakshaQuant - Where AI meets Markets_
-
+    <b>Built with ❤️ by a solo developer exploring the BFSI × AI frontier</b>
 </div>
