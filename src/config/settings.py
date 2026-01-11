@@ -139,6 +139,22 @@ class Settings(BaseSettings):
         description="Starting balance for local paper trading (INR)",
     )
 
+    # ===========================================
+    # Telegram Notifications
+    # ===========================================
+    telegram_bot_token: str | None = Field(
+        default=None,
+        description="Telegram bot token from @BotFather",
+    )
+    telegram_chat_id: str | None = Field(
+        default=None,
+        description="Your Telegram chat ID from @userinfobot",
+    )
+    telegram_enabled: bool = Field(
+        default=True,
+        description="Enable Telegram notifications",
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

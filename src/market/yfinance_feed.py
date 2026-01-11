@@ -116,7 +116,7 @@ class YFinanceFeed:
         self._last_fetch = None
     
     def _get_yf_symbol(self, symbol: str) -> str:
-        \"\"\"Convert NSE symbol to Yahoo Finance format.\"\"\"
+        """Convert NSE symbol to Yahoo Finance format."""
         # Works with ANY NSE symbol - just add .NS suffix
         return NSE_SYMBOLS.get(symbol, f"{symbol}.NS")
     
