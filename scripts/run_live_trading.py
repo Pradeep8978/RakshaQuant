@@ -25,6 +25,7 @@ from src.agents.graph import create_trading_graph, run_trading_cycle
 from src.market.manager import MarketDataManager, MarketQuote, is_market_open
 from src.market.indicators import IndicatorResult, Timeframe
 from src.market.signals import SignalEngine
+from src.market.stock_discovery import StockDiscovery
 from src.memory.database import AgentMemoryDB
 from src.observability.tracing import setup_tracing
 from src.dashboard.cli import TradingDashboard, create_dashboard_layout
@@ -115,16 +116,24 @@ async def run_live_trading():
     market_mode = "LIVE" if is_market_open() else "SIMULATED"
     dashboard.stats.log_activity(f"Market mode: {market_mode}", "INFO")
     
-    # Top stocks to trade
-    trading_symbols = [
-        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
-        "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK", "LT",
-    ]
+    # Dynamic Stock Discovery (NEW - Free Tier)
+    # Discovers stocks from news mentions and market movers
+    dashboard.stats.log_activity("Running dynamic stock discovery...", "INFO")
+    discovery = StockDiscovery(max_stocks=15)
+    trading_symbols = await discovery.discover()
+    
+    # Log discovered stocks
+    report = discovery.get_discovery_report()
+    for item in report[:5]:  # Top 5
+        dashboard.stats.log_activity(
+            f"Discovered: {item['symbol']} ({item['source']}: {item['reason'][:30]}...)",
+            "INFO"
+        )
     
     market_manager = MarketDataManager(symbols=trading_symbols)
     
     console.print("\n[bold green]RakshaQuant Live Trading System Starting...[/]")
-    console.print(f"[dim]Mode: {market_mode} | Stocks: {len(trading_symbols)} | Press Ctrl+C to stop[/]\n")
+    console.print(f"[dim]Mode: {market_mode} | Discovered Stocks: {len(trading_symbols)} | Press Ctrl+C to stop[/]\n")
     time.sleep(1)
     
     # Start market data

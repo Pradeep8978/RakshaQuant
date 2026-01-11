@@ -43,10 +43,16 @@ class Settings(BaseSettings):
     )
 
     # ===========================================
-    # Broker API - DhanHQ
+    # Broker API - DhanHQ (Optional for free tier)
     # ===========================================
-    dhan_client_id: str = Field(..., description="DhanHQ client ID")
-    dhan_access_token: SecretStr = Field(..., description="DhanHQ access token")
+    dhan_client_id: str | None = Field(
+        default=None,
+        description="DhanHQ client ID (optional for local paper trading)",
+    )
+    dhan_access_token: SecretStr | None = Field(
+        default=None,
+        description="DhanHQ access token (optional for local paper trading)",
+    )
     dhan_base_url: str = Field(
         default="https://api.dhan.co/v2",
         description="DhanHQ API base URL (use https://api.dhan.co/v2 for live)",
@@ -111,6 +117,26 @@ class Settings(BaseSettings):
     memory_decay_days: int = Field(
         default=30,
         description="Days after which lesson relevance starts decaying",
+    )
+
+    # ===========================================
+    # Free Tier Configuration
+    # ===========================================
+    market_data_source: Literal["yfinance", "dhan"] = Field(
+        default="yfinance",
+        description="Market data source: yfinance (free) or dhan (requires account)",
+    )
+    execution_mode: Literal["local_paper", "dhan_paper", "live"] = Field(
+        default="local_paper",
+        description="Execution mode: local_paper (free), dhan_paper (sandbox), or live",
+    )
+    enable_news_analysis: bool = Field(
+        default=True,
+        description="Enable AI-powered news sentiment analysis",
+    )
+    paper_wallet_balance: float = Field(
+        default=1000000.0,
+        description="Starting balance for local paper trading (INR)",
     )
 
 

@@ -153,6 +153,19 @@ class TradingState(TypedDict):
     workflow_id: str
     timestamp: str
     errors: list[str]
+    
+    # ===========================================
+    # Sentiment & Prediction (Free Tier)
+    # ===========================================
+    
+    # News sentiment from NewsAnalyst
+    news_sentiment: dict[str, Any]
+    
+    # Market Mood Index from SentimentAgent
+    market_mood: dict[str, Any]
+    
+    # Price predictions from PredictionAgent
+    prediction_signals: list[dict[str, Any]]
 
 
 def create_initial_state(
@@ -213,4 +226,9 @@ def create_initial_state(
         workflow_id=workflow_id,
         timestamp=datetime.now().isoformat(),
         errors=[],
+        
+        # Sentiment & Prediction (Free Tier)
+        news_sentiment={},
+        market_mood={},
+        prediction_signals=[],
     )

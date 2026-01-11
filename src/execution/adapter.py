@@ -1,7 +1,7 @@
 """
 Execution Adapter Module
 
-Paper trading order execution via DhanHQ sandbox.
+Order execution via DhanHQ sandbox or Local Paper Engine.
 Provides abstraction layer for order placement with retry logic.
 """
 
@@ -10,11 +10,18 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
-
-from dhanhq import dhanhq
+from typing import Any, Protocol
 
 from src.config import get_settings
+from src.execution.paper_engine import LocalPaperEngine
+
+# DhanHQ is optional - only import if configured
+try:
+    from dhanhq import dhanhq
+    DHANHQ_AVAILABLE = True
+except ImportError:
+    DHANHQ_AVAILABLE = False
+    dhanhq = None
 
 logger = logging.getLogger(__name__)
 
@@ -290,31 +297,54 @@ class ExecutionAdapter:
 
 async def execute_trades(
     trades: list[dict[str, Any]],
-    adapter: ExecutionAdapter | None = None,
+    adapter: "ExecutionAdapter | LocalExecutionAdapter | None" = None,
+    market_prices: dict[str, float] | None = None,
 ) -> list[OrderResult]:
     """
     Execute a list of approved trades.
     
     Args:
         trades: List of trade dictionaries from risk agent
-        adapter: Execution adapter (creates new if None)
+        adapter: Execution adapter (creates new based on config if None)
+        market_prices: Current market prices (required for local paper trading)
         
     Returns:
         List of order results
     """
+    settings = get_settings()
+    
+    # Select adapter based on execution mode
     if adapter is None:
-        adapter = ExecutionAdapter()
+        if settings.execution_mode == "local_paper":
+            adapter = LocalExecutionAdapter()
+        elif settings.execution_mode in ["dhan_paper", "live"]:
+            if DHANHQ_AVAILABLE and settings.dhan_client_id:
+                adapter = ExecutionAdapter()
+            else:
+                logger.warning("DhanHQ not available, falling back to local paper")
+                adapter = LocalExecutionAdapter()
+        else:
+            adapter = LocalExecutionAdapter()
     
     results = []
     
     for trade in trades:
+        entry_price = trade.get("entry_price", 0)
+        
+        # For local paper trading, use market prices
+        if isinstance(adapter, LocalExecutionAdapter) and market_prices:
+            symbol = trade.get("symbol", "")
+            if symbol in market_prices:
+                entry_price = market_prices[symbol]
+        
         # Create order request from trade
         request = OrderRequest(
             symbol=trade.get("symbol", ""),
             exchange=trade.get("exchange", "NSE"),
             side=OrderSide.BUY if trade.get("signal_type") == "BUY" else OrderSide.SELL,
             quantity=_calculate_quantity(trade),
-            order_type=OrderType.MARKET,  # Use market orders for paper trading
+            order_type=OrderType.MARKET,
+            price=entry_price,
             signal_id=trade.get("signal_id", ""),
             strategy=trade.get("strategy", ""),
         )
@@ -341,3 +371,82 @@ def _calculate_quantity(trade: dict[str, Any]) -> int:
     quantity = int(position_value / entry_price)
     
     return max(1, quantity)  # At least 1 share
+
+
+# ===========================================
+# Local Paper Execution Adapter
+# ===========================================
+
+@dataclass
+class LocalExecutionAdapter:
+    """
+    Local paper trading execution adapter.
+    
+    Uses LocalPaperEngine for 100% free paper trading.
+    No broker connection required.
+    """
+    
+    _engine: LocalPaperEngine = field(default=None, repr=False)
+    
+    def __post_init__(self):
+        """Initialize the local paper engine."""
+        if self._engine is None:
+            self._engine = LocalPaperEngine()
+        logger.info("Initialized Local Paper Execution Adapter")
+    
+    async def place_order(self, request: OrderRequest) -> OrderResult:
+        """
+        Place an order via local paper engine.
+        
+        Args:
+            request: Order request details
+            
+        Returns:
+            OrderResult with execution details
+        """
+        logger.info(
+            f"[LOCAL] Placing order: {request.side.value} {request.quantity} {request.symbol} "
+            f"@ {request.order_type.value}"
+        )
+        
+        # Execute via paper engine
+        order = self._engine.place_order(
+            symbol=request.symbol,
+            side=request.side.value,
+            quantity=request.quantity,
+            current_price=request.price,
+            order_type=request.order_type.value,
+        )
+        
+        # Map status
+        status_map = {
+            "FILLED": OrderStatus.FILLED,
+            "REJECTED": OrderStatus.REJECTED,
+            "PENDING": OrderStatus.PENDING,
+        }
+        
+        return OrderResult(
+            order_id=order.order_id,
+            request=request,
+            status=status_map.get(order.status, OrderStatus.PENDING),
+            filled_quantity=request.quantity if order.status == "FILLED" else 0,
+            average_price=order.price,
+            message=f"Local paper: {order.status}",
+            broker_response={"engine": "local_paper"},
+        )
+    
+    async def get_positions(self) -> list[dict[str, Any]]:
+        """Get current open positions from paper engine."""
+        return [p.to_dict() for p in self._engine.get_positions()]
+    
+    async def get_holdings(self) -> list[dict[str, Any]]:
+        """Get current holdings (same as positions for paper)."""
+        return await self.get_positions()
+    
+    def get_stats(self) -> dict[str, Any]:
+        """Get trading statistics."""
+        return self._engine.get_stats()
+    
+    def get_balance(self) -> float:
+        """Get current cash balance."""
+        return self._engine.get_balance()

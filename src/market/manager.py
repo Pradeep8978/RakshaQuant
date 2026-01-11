@@ -19,6 +19,8 @@ from src.market.websocket_feed import (
     FeedRequestCode,
 )
 from src.market.simulated_data import SimulatedMarketData, SimulatedQuote
+from src.market.yfinance_feed import YFinanceFeed, YFinanceQuote
+from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -91,11 +93,14 @@ class MarketDataManager:
     ):
         self.on_quote = on_quote
         self.symbols = symbols or list(NSE_WATCHLIST.keys())
+        self.settings = get_settings()
         
         self.websocket_feed: DhanWebSocketFeed | None = None
+        self.yfinance_feed: YFinanceFeed | None = None
         self.simulated_data = SimulatedMarketData()
         
         self.is_live = False
+        self.data_source = "simulated"  # "dhan", "yfinance", or "simulated"
         self.quotes: dict[str, MarketQuote] = {}
         self.running = False
     
@@ -130,37 +135,84 @@ class MarketDataManager:
         Start the market data manager.
         
         Returns:
-            True if using live data, False if simulated
+            True if using live/yfinance data, False if simulated
         """
         self.running = True
         
-        if is_market_open():
-            logger.info("Market is OPEN - attempting WebSocket connection")
-            
-            self.websocket_feed = DhanWebSocketFeed(
-                on_quote=self._on_websocket_quote,
-                on_error=self._on_websocket_error,
+        # Check configured data source
+        data_source = self.settings.market_data_source
+        
+        # Option 1: YFinance (Free, delayed data)
+        if data_source == "yfinance":
+            logger.info("Using Yahoo Finance data source (free tier)")
+            self.yfinance_feed = YFinanceFeed(
+                symbols=self.symbols,
+                on_quote=self._on_yfinance_quote,
             )
-            
-            connected = await self.websocket_feed.connect()
-            
-            if connected:
-                await self.websocket_feed.subscribe_nse_stocks(
-                    symbols=self.symbols,
-                    mode=FeedRequestCode.SUBSCRIBE_QUOTE,
-                )
-                self.is_live = True
-                logger.info(f"Live WebSocket feed active for {len(self.symbols)} stocks")
+            success = await self.yfinance_feed.start()
+            if success:
+                self.is_live = False  # YFinance is delayed, not truly live
+                self.data_source = "yfinance"
+                logger.info(f"Yahoo Finance feed active for {len(self.symbols)} stocks")
                 return True
             else:
-                logger.warning("WebSocket connection failed - using simulated data")
-        else:
-            logger.info("Market is CLOSED - using simulated data")
+                logger.warning("Yahoo Finance failed - using simulated data")
         
-        # Use simulated data
+        # Option 2: DhanHQ WebSocket (Real-time, requires account)
+        elif data_source == "dhan" and is_market_open():
+            # Check if DhanHQ credentials are available
+            if self.settings.dhan_client_id and self.settings.dhan_access_token:
+                logger.info("Market is OPEN - attempting DhanHQ WebSocket connection")
+                
+                self.websocket_feed = DhanWebSocketFeed(
+                    on_quote=self._on_websocket_quote,
+                    on_error=self._on_websocket_error,
+                )
+                
+                connected = await self.websocket_feed.connect()
+                
+                if connected:
+                    await self.websocket_feed.subscribe_nse_stocks(
+                        symbols=self.symbols,
+                        mode=FeedRequestCode.SUBSCRIBE_QUOTE,
+                    )
+                    self.is_live = True
+                    self.data_source = "dhan"
+                    logger.info(f"Live WebSocket feed active for {len(self.symbols)} stocks")
+                    return True
+                else:
+                    logger.warning("WebSocket connection failed - using simulated data")
+            else:
+                logger.warning("DhanHQ credentials not configured - using simulated data")
+        else:
+            logger.info("Market is CLOSED or data source not configured - using simulated data")
+        
+        # Fallback: Simulated data
         self.is_live = False
+        self.data_source = "simulated"
         self._load_simulated_quotes()
         return False
+    
+    def _on_yfinance_quote(self, quote: YFinanceQuote):
+        """Handle incoming Yahoo Finance quote."""
+        market_quote = MarketQuote(
+            symbol=quote.symbol,
+            last_price=quote.last_price,
+            open=quote.open,
+            high=quote.high,
+            low=quote.low,
+            close=quote.close,
+            change=quote.change,
+            change_percent=quote.change_percent,
+            volume=quote.volume,
+            is_live=False,  # YFinance is delayed
+        )
+        
+        self.quotes[quote.symbol] = market_quote
+        
+        if self.on_quote:
+            self.on_quote(market_quote)
+
     
     def _load_simulated_quotes(self):
         """Load simulated quotes into cache."""
