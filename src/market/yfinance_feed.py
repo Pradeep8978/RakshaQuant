@@ -153,21 +153,21 @@ class YFinanceFeed:
                     
                     # Latest data
                     latest = hist.iloc[-1]
-                    prev_close = hist.iloc[-2]["Close"] if len(hist) > 1 else latest["Close"]
+                    prev_close = float(hist.iloc[-2]["Close"]) if len(hist) > 1 else float(latest["Close"])
                     
                     last_price = float(info.last_price) if hasattr(info, 'last_price') else float(latest["Close"])
-                    change = last_price - prev_close
-                    change_pct = (change / prev_close * 100) if prev_close > 0 else 0
+                    change = float(last_price - prev_close)
+                    change_pct = float((change / prev_close * 100)) if prev_close > 0 else 0.0
                     
                     quote = YFinanceQuote(
                         symbol=symbol,
-                        last_price=round(last_price, 2),
-                        open=round(float(latest["Open"]), 2),
-                        high=round(float(latest["High"]), 2),
-                        low=round(float(latest["Low"]), 2),
-                        close=round(prev_close, 2),
-                        change=round(change, 2),
-                        change_percent=round(change_pct, 2),
+                        last_price=float(round(last_price, 2)),
+                        open=float(round(float(latest["Open"]), 2)),
+                        high=float(round(float(latest["High"]), 2)),
+                        low=float(round(float(latest["Low"]), 2)),
+                        close=float(round(prev_close, 2)),
+                        change=float(round(change, 2)),
+                        change_percent=float(round(change_pct, 2)),
                         volume=int(latest["Volume"]),
                     )
                     

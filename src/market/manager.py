@@ -197,14 +197,14 @@ class MarketDataManager:
         """Handle incoming Yahoo Finance quote."""
         market_quote = MarketQuote(
             symbol=quote.symbol,
-            last_price=quote.last_price,
-            open=quote.open,
-            high=quote.high,
-            low=quote.low,
-            close=quote.close,
-            change=quote.change,
-            change_percent=quote.change_percent,
-            volume=quote.volume,
+            last_price=float(quote.last_price),
+            open=float(quote.open),
+            high=float(quote.high),
+            low=float(quote.low),
+            close=float(quote.close),
+            change=float(quote.change),
+            change_percent=float(quote.change_percent),
+            volume=int(quote.volume),
             is_live=False,  # YFinance is delayed
         )
         
@@ -221,14 +221,14 @@ class MarketDataManager:
         for symbol, sq in sim_quotes.items():
             self.quotes[symbol] = MarketQuote(
                 symbol=sq.symbol,
-                last_price=sq.last_price,
-                open=sq.open,
-                high=sq.high,
-                low=sq.low,
-                close=sq.close,
-                change=sq.change,
-                change_percent=sq.change_percent,
-                volume=sq.volume,
+                last_price=float(sq.last_price),
+                open=float(sq.open),
+                high=float(sq.high),
+                low=float(sq.low),
+                close=float(sq.close),
+                change=float(sq.change),
+                change_percent=float(sq.change_percent),
+                volume=int(sq.volume),
                 is_live=False,
             )
             
