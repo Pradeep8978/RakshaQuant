@@ -113,7 +113,7 @@ def test_apply_decay(memory_db):
 
     # Manually backdate created_at
     record = memory_db._session.query(LessonRecord).filter_by(lesson_id="l1").first()
-    record.created_at = datetime.datetime.utcnow() - datetime.timedelta(days=40) # older than 30 days decay default
+    record.created_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=40) # older than 30 days decay default
     memory_db._session.commit()
 
     memory_db.get_lessons() # Triggers _apply_decay

@@ -79,6 +79,9 @@ select = ["E", "F", "I", "N", "W", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore:datetime.datetime.utcnow:DeprecationWarning:sqlalchemy",
+]
 
 [tool.mypy]
 python_version = "3.11"

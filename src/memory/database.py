@@ -7,7 +7,7 @@ ranking and time-decay relevance scoring.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Any
 from uuid import uuid4
 
@@ -53,9 +53,9 @@ class LessonRecord(Base):
     success_count = Column(Integer, default=0)  # Times proved useful
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
     last_used_at = Column(DateTime, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
     expires_at = Column(DateTime, nullable=True)  # Optional expiry
     
     # Index for efficient querying
@@ -154,7 +154,7 @@ class AgentMemoryDB:
             # Calculate expiry
             expires_at = None
             if expires_in_days:
-                expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+                expires_at = datetime.now(UTC) + timedelta(days=expires_in_days)
             
             record = LessonRecord(
                 lesson_id=lesson_id,
@@ -215,7 +215,7 @@ class AgentMemoryDB:
             if not include_expired:
                 query = query.filter(
                     (LessonRecord.expires_at.is_(None)) |
-                    (LessonRecord.expires_at > datetime.utcnow())
+                    (LessonRecord.expires_at > datetime.now(UTC))
                 )
             
             if category:
@@ -310,7 +310,7 @@ class AgentMemoryDB:
             record = self._session.query(LessonRecord).filter_by(lesson_id=lesson_id).first()
             if record:
                 record.use_count += 1
-                record.last_used_at = datetime.utcnow()
+                record.last_used_at = datetime.now(UTC)
                 
                 if was_successful:
                     record.success_count += 1
@@ -340,7 +340,7 @@ class AgentMemoryDB:
         try:
             # Delete expired
             expired = self._session.query(LessonRecord).filter(
-                LessonRecord.expires_at < datetime.utcnow()
+                LessonRecord.expires_at < datetime.now(UTC)
             ).delete()
             
             # Delete very low score lessons
@@ -362,10 +362,15 @@ class AgentMemoryDB:
         """Apply time-based decay to lesson scores."""
         try:
             records = self._session.query(LessonRecord).all()
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
             
             for record in records:
-                age_days = (now - record.created_at).days
+                # Handle both timezone-naive and timezone-aware created_at
+                created_at = record.created_at
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=UTC)
+                
+                age_days = (now - created_at).days
                 
                 if age_days > self.decay_days:
                     # Apply exponential decay after decay_days
