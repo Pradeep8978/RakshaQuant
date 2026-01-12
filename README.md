@@ -70,49 +70,216 @@ No more hardcoded watchlists! The system now **automatically discovers** which s
 
 RakshaQuant uses a **hierarchical agent graph** where specialized agents collaborate to make trading decisions.
 
+### System Overview
+
 ```mermaid
-graph TD
-    %% Styling
-    classDef market fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef agent fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef risk fill:#ffebee,stroke:#c62828,stroke-width:2px;
-    classDef exec fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
-    classDef memory fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,stroke-dasharray: 5 5;
-    classDef free fill:#e8f5e9,stroke:#4caf50,stroke-width:3px;
-
-    subgraph "🌐 Market Data Layer"
-        YF[YFinance Feed] -->|Free Data| MQ[Market Quotes]
-        WS[WebSocket Manager] -->|Real-time| MQ
-        SIM[Simulator] -->|Fallback| MQ
-        MQ -->|OHLCV Data| TECH[Technical Analysis]
-        TECH -->|Indicators| SIG_ENG[Signal Engine]
+flowchart TB
+    subgraph External["🌐 External Services"]
+        GROQ["Groq LLM API<br/>llama-3.3-70b"]
+        YFINANCE["Yahoo Finance<br/>(Free Market Data)"]
+        DHAN["DhanHQ Broker API<br/>(Optional)"]
+        LANGSMITH["LangSmith<br/>Observability"]
+        TELEGRAM["Telegram Bot API"]
+        POSTGRES[("PostgreSQL<br/>Agent Memory")]
     end
-    class YF free
-    class WS,SIM,MQ,TECH,SIG_ENG market
 
-    subgraph "🔍 Discovery Layer"
-        NEWS[News Scanner] -->|Trending| DISC[Stock Discovery]
-        MOVERS[Market Movers] -->|Gainers/Losers| DISC
-        DISC -->|Dynamic Watchlist| SIG_ENG
+    subgraph Config["⚙️ Configuration Layer"]
+        SETTINGS["Settings<br/>(Pydantic)"]
+        ENV[".env File"]
     end
-    class NEWS,MOVERS,DISC free
 
-    subgraph "🧠 Agentic Cognitive Layer (LangGraph)"
-        SIG_ENG -->|Alerts| REGIME[Market Regime Agent]
-        REGIME -->|Context: Bull/Bear| STRATEGY[Strategy Selection Agent]
-        STRATEGY -->|Active Strategies| SIGNAL[Signal Validation Agent]
-        SIGNAL -->|Validated Trade| RISK[Risk Management Agent]
-    end
-    class REGIME,STRATEGY,SIGNAL agent
-    class RISK risk
+    subgraph Market["📊 Market Data Layer"]
+        direction TB
+        MANAGER["MarketDataManager"]
 
-    subgraph "⚡ Execution Layer"
-        RISK -->|Approved| ORDER[Order Manager]
-        ORDER -->|Free Mode| PAPER[Local Paper Engine]
-        ORDER -->|Live Mode| DHAN[DhanHQ API]
+        subgraph DataSources["Data Sources"]
+            WS_FEED["WebSocket Feed<br/>(Live Hours)"]
+            YF_FEED["YFinance Feed<br/>(Free Tier)"]
+            SIM_FEED["Simulated Data<br/>(After Hours)"]
+        end
+
+        INDICATORS["Indicator Calculator<br/>(RSI, MACD, Bollinger)"]
+        SIGNALS["Signal Engine<br/>(Buy/Sell Generation)"]
+        DISCOVERY["Stock Discovery<br/>(NSE Top Movers)"]
     end
-    class ORDER,DHAN exec
-    class PAPER free
+
+    subgraph Agents["🤖 Agent Decision Layer (LangGraph)"]
+        direction TB
+        STATE["TradingState<br/>(TypedDict)"]
+
+        subgraph AgentGraph["Agent Workflow Graph"]
+            direction LR
+            REGIME["Market Regime Agent"]
+            STRATEGY["Strategy Selection Agent"]
+            VALIDATION["Signal Validation Agent"]
+            RISK["Risk & Compliance Agent"]
+        end
+
+        subgraph SupportAgents["Support Agents"]
+            NEWS["News Analyst Agent"]
+            SENTIMENT["Sentiment Agent"]
+            PREDICTION["Prediction Agent"]
+        end
+    end
+
+    subgraph Memory["🧠 Memory & Learning Layer"]
+        direction TB
+        MEMORY_DB["AgentMemoryDB<br/>(Lessons Storage)"]
+        CLASSIFIER["MistakeClassifier<br/>(Loss Analysis)"]
+        ANALYZER["TradeAnalyzer<br/>(Outcome Review)"]
+        INJECTOR["MemoryInjector<br/>(Context Injection)"]
+    end
+
+    subgraph Execution["⚡ Execution Layer"]
+        direction TB
+        ADAPTER["ExecutionAdapter"]
+
+        subgraph ExecutionModes["Execution Modes"]
+            LOCAL_PAPER["LocalPaperEngine<br/>(100% Free)"]
+            DHAN_PAPER["Dhan Sandbox<br/>(Paper Trading)"]
+            LIVE["Live Trading"]
+        end
+
+        JOURNAL["TradeJournal<br/>(History Logging)"]
+    end
+
+    subgraph Backtest["📈 Backtesting"]
+        BT_ENGINE["BacktestEngine"]
+        STRATEGIES["Strategy Library<br/>(SMA Cross, RSI, etc.)"]
+    end
+
+    %% Configuration connections
+    ENV --> SETTINGS
+    SETTINGS --> MANAGER
+    SETTINGS --> ADAPTER
+    SETTINGS --> MEMORY_DB
+
+    %% Market data flow
+    YFINANCE --> YF_FEED
+    DHAN --> WS_FEED
+    WS_FEED --> MANAGER
+    YF_FEED --> MANAGER
+    SIM_FEED --> MANAGER
+    MANAGER --> INDICATORS
+    INDICATORS --> SIGNALS
+    DISCOVERY --> MANAGER
+
+    %% Agent workflow
+    SIGNALS --> STATE
+    STATE --> REGIME
+    REGIME -->|"regime + confidence"| STRATEGY
+    STRATEGY -->|"active strategies"| VALIDATION
+    VALIDATION -->|"validated signals"| RISK
+    RISK -->|"approved trades"| STATE
+
+    %% Support agents
+    NEWS --> STATE
+    SENTIMENT --> STATE
+    PREDICTION --> STATE
+
+    %% Memory feedback loop
+    INJECTOR -->|"inject lessons"| STATE
+    STATE -->|"trade outcomes"| ANALYZER
+    ANALYZER --> CLASSIFIER
+    CLASSIFIER --> MEMORY_DB
+    MEMORY_DB --> INJECTOR
+
+    %% Execution
+    STATE -->|"trades_to_execute"| ADAPTER
+    ADAPTER --> LOCAL_PAPER
+    ADAPTER --> DHAN_PAPER
+    ADAPTER --> LIVE
+    ADAPTER --> JOURNAL
+    JOURNAL --> ANALYZER
+
+    %% Observability
+    REGIME --> LANGSMITH
+    STRATEGY --> LANGSMITH
+    VALIDATION --> LANGSMITH
+    RISK --> LANGSMITH
+
+    %% LLM connections
+    GROQ --> REGIME
+    GROQ --> STRATEGY
+    GROQ --> NEWS
+
+    %% Notifications
+    RISK -->|"trade alerts"| TELEGRAM
+
+    %% Storage
+    MEMORY_DB --> POSTGRES
+
+    %% Backtesting
+    YF_FEED --> BT_ENGINE
+    STRATEGIES --> BT_ENGINE
+```
+
+### Agent Workflow Detail
+
+The 4-agent decision pipeline with conditional edges:
+
+```mermaid
+flowchart LR
+    START((Start)) --> REGIME["🎯 Market Regime<br/>Agent"]
+
+    REGIME -->|"confidence < 0.3"| END1((End))
+    REGIME -->|"confidence ≥ 0.3"| STRATEGY["📊 Strategy Selection<br/>Agent"]
+
+    STRATEGY --> VALIDATION["✓ Signal Validation<br/>Agent"]
+
+    VALIDATION -->|"no validated<br/>signals"| END2((End))
+    VALIDATION -->|"has signals"| RISK["🛡️ Risk & Compliance<br/>Agent"]
+
+    RISK --> END3((End))
+
+    subgraph Legend["State Fields Modified"]
+        L1["regime, regime_confidence"]
+        L2["active_strategies"]
+        L3["validated_signals, rejected_signals"]
+        L4["approved_trades, risk_warnings"]
+    end
+
+    REGIME -.-> L1
+    STRATEGY -.-> L2
+    VALIDATION -.-> L3
+    RISK -.-> L4
+```
+
+### Memory Feedback Loop
+
+How the system learns from trade losses:
+
+```mermaid
+flowchart TB
+    subgraph TradingCycle["Trading Cycle"]
+        TRADE["Trade Executed"]
+        OUTCOME["Trade Outcome<br/>(Win/Loss)"]
+    end
+
+    subgraph AnalysisPhase["Loss Analysis"]
+        ANALYZER["TradeAnalyzer"]
+        CLASSIFIER["MistakeClassifier"]
+    end
+
+    subgraph Storage["Persistent Memory"]
+        DB[("PostgreSQL<br/>agent_memory table")]
+        DECAY["Time Decay<br/>Scoring"]
+    end
+
+    subgraph Injection["Next Trading Cycle"]
+        INJECTOR["MemoryInjector"]
+        CONTEXT["Agent Context<br/>(Top 5 Lessons)"]
+    end
+
+    TRADE --> OUTCOME
+    OUTCOME -->|"if loss"| ANALYZER
+    ANALYZER --> CLASSIFIER
+    CLASSIFIER -->|"lesson_id, category,<br/>severity, description"| DB
+    DB --> DECAY
+    DECAY --> DB
+    DB --> INJECTOR
+    INJECTOR --> CONTEXT
+    CONTEXT -->|"memory_lessons"| TRADE
 ```
 
 ---
