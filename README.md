@@ -133,7 +133,7 @@ graph TD
 
 ### 🖥️ Professional Dashboard
 
-![demo](https://github.com/user-attachments/assets/6eeb132f-fd68-46b2-a753-fcd089cb5e78)
+<img width="1886" height="946" alt="Screenshot 2026-01-12 101805" src="https://github.com/user-attachments/assets/b4dcc4d0-ec10-4555-8e3c-2e5c037e94b4" />
 A rich CLI dashboard built with `rich` providing real-time visibility into the system:
 
 - **Market Overview**: Live ticker for 10+ NSE stocks
@@ -320,3 +320,4 @@ All these questions can be answered by inspecting the traces in the LangSmith da
 <div align="center">
     <b>Built with ❤️ by a solo developer exploring the BFSI × AI frontier</b>
 </div>
+
