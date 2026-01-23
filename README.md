@@ -300,7 +300,8 @@ flowchart TB
 
 ### 🖥️ Professional Dashboard
 
-<img width="1886" height="946" alt="Screenshot 2026-01-12 101805" src="https://github.com/user-attachments/assets/b4dcc4d0-ec10-4555-8e3c-2e5c037e94b4" />
+<img width="1342" height="665" alt="image" src="https://github.com/user-attachments/assets/9ed35205-7878-4114-a438-eb50ae6107d9" />
+
 A rich CLI dashboard built with `rich` providing real-time visibility into the system:
 
 - **Market Overview**: Live ticker for 10+ NSE stocks
@@ -487,4 +488,5 @@ All these questions can be answered by inspecting the traces in the LangSmith da
 <div align="center">
     <b>Built with ❤️ by a solo developer exploring the BFSI × AI frontier</b>
 </div>
+
 
