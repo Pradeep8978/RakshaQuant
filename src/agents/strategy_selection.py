@@ -3,6 +3,11 @@ Strategy Selection Agent Module
 
 Selects active trading strategies based on the current market regime
 and historical performance data.
+
+Features:
+- Rate limiting to prevent API throttling
+- Circuit breaker for resilience
+- Structured error handling
 """
 
 import json
@@ -13,6 +18,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 
 from src.config import get_settings
+from src.utils.rate_limiter import get_groq_limiter
+from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
+from src.utils.errors import RateLimitError
 from .state import TradingState
 
 logger = logging.getLogger(__name__)
@@ -63,6 +71,7 @@ def strategy_selection_node(state: TradingState) -> dict[str, Any]:
     LangGraph node for strategy selection.
     
     Selects which strategies should be active based on regime and memory.
+    Uses rate limiting and circuit breaker for resilience.
     
     Args:
         state: Current trading state with regime and memory lessons
@@ -71,6 +80,10 @@ def strategy_selection_node(state: TradingState) -> dict[str, Any]:
         State updates with active strategies
     """
     logger.info("Running Strategy Selection Agent...")
+    
+    settings = get_settings()
+    rate_limiter = get_groq_limiter()
+    circuit_breaker = get_groq_circuit_breaker()
     
     try:
         regime = state.get("regime", "unknown")
@@ -89,15 +102,24 @@ def strategy_selection_node(state: TradingState) -> dict[str, Any]:
             regime, regime_confidence, strategy_lessons, daily_stats
         )
         
-        # Create and run agent
-        agent = create_strategy_agent()
-        
         messages = [
             SystemMessage(content=STRATEGY_SYSTEM_PROMPT),
             HumanMessage(content=context),
         ]
         
-        response = agent.invoke(messages)
+        # Check circuit breaker
+        if not circuit_breaker.is_available:
+            raise CircuitBreakerOpenError("groq_api", circuit_breaker.recovery_time)
+        
+        # Apply rate limiting
+        if settings.enable_rate_limiting:
+            rate_limiter.acquire_sync()
+        
+        def invoke_llm():
+            agent = create_strategy_agent()
+            return agent.invoke(messages)
+        
+        response = circuit_breaker.call(invoke_llm)
         result = _parse_strategy_response(response.content)
         
         logger.info(f"Selected strategies: {result['active_strategies']}")
@@ -108,14 +130,38 @@ def strategy_selection_node(state: TradingState) -> dict[str, Any]:
             "messages": [response],
         }
         
+    except CircuitBreakerOpenError as e:
+        logger.warning(f"Circuit breaker open: {e}")
+        return _fallback_strategy_selection(state, regime, str(e))
+        
     except Exception as e:
         logger.error(f"Strategy Selection Agent error: {e}")
-        # Default to conservative strategies
-        return {
-            "active_strategies": ["trend_following"],
-            "strategy_reasoning": f"Error occurred, defaulting to conservative: {str(e)}",
-            "errors": state.get("errors", []) + [f"Strategy Agent: {str(e)}"],
-        }
+        return _fallback_strategy_selection(state, state.get("regime", "unknown"), str(e))
+
+
+def _fallback_strategy_selection(state: TradingState, regime: str, error_msg: str) -> dict[str, Any]:
+    """
+    Fallback strategy selection based on regime.
+    
+    Used when LLM is unavailable.
+    """
+    # Default strategies per regime
+    regime_strategies = {
+        "trending_up": ["momentum", "trend_following"],
+        "trending_down": ["trend_following"],
+        "ranging": ["mean_reversion"],
+        "volatile": ["breakout"],
+    }
+    
+    strategies = regime_strategies.get(regime, ["trend_following"])
+    
+    logger.info(f"Using fallback strategies for {regime}: {strategies}")
+    
+    return {
+        "active_strategies": strategies,
+        "strategy_reasoning": f"Fallback selection for {regime} regime. Error: {error_msg}",
+        "errors": state.get("errors", []) + [f"Strategy Agent fallback: {error_msg}"],
+    }
 
 
 def _build_strategy_context(

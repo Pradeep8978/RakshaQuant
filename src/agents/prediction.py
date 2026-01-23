@@ -1,13 +1,14 @@
 """
 Price Prediction Agent
 
-Uses simple machine learning to predict next candle direction.
-Based on Linear Regression on recent OHLC data.
+Uses ensemble machine learning to predict next candle direction.
+Based on RandomForest and Linear Regression with technical features.
 
 Features:
 - Direction prediction (up/down)
-- Confidence scoring
+- Confidence scoring from model agreement
 - Historical pattern analysis
+- Ensemble voting from multiple models
 """
 
 import logging
@@ -20,11 +21,14 @@ import pandas as pd
 
 try:
     from sklearn.linear_model import LinearRegression
+    from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
     from sklearn.preprocessing import StandardScaler
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
     LinearRegression = None
+    RandomForestRegressor = None
+    GradientBoostingRegressor = None
     StandardScaler = None
 
 from src.config import get_settings
@@ -56,9 +60,10 @@ class PredictionSignal:
 
 class PredictionAgent:
     """
-    Predicts price direction using simple ML.
+    Predicts price direction using ensemble ML.
     
-    Uses Linear Regression on recent price data to predict next movement.
+    Uses multiple models (LinearRegression, RandomForest, GradientBoosting)
+    and combines their predictions for more robust forecasting.
     """
     
     def __init__(self, lookback_periods: int = 20):
@@ -77,8 +82,10 @@ class PredictionAgent:
         
         Features:
         - Price changes (returns)
-        - Moving average ratios
+        - Moving average ratios (multiple periods)
         - Volume changes
+        - Price range metrics
+        - RSI-like momentum
         """
         if len(df) < self.lookback + 5:
             return None, None
@@ -86,11 +93,29 @@ class PredictionAgent:
         # Calculate features
         df = df.copy()
         df["returns"] = df["Close"].pct_change()
+        df["returns_2"] = df["Close"].pct_change(2)
+        df["returns_5"] = df["Close"].pct_change(5)
+        
         df["sma_5"] = df["Close"].rolling(5).mean()
         df["sma_10"] = df["Close"].rolling(10).mean()
-        df["sma_ratio"] = df["sma_5"] / df["sma_10"]
+        df["sma_20"] = df["Close"].rolling(20).mean()
+        df["sma_ratio_5_10"] = df["sma_5"] / df["sma_10"]
+        df["sma_ratio_10_20"] = df["sma_10"] / df["sma_20"]
+        
         df["vol_change"] = df["Volume"].pct_change()
+        df["vol_sma_5"] = df["Volume"].rolling(5).mean()
+        df["vol_ratio"] = df["Volume"] / df["vol_sma_5"]
+        
         df["high_low_range"] = (df["High"] - df["Low"]) / df["Close"]
+        df["close_position"] = (df["Close"] - df["Low"]) / (df["High"] - df["Low"] + 0.0001)
+        
+        # RSI-like momentum
+        delta = df["Close"].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / (loss + 0.0001)
+        df["rsi"] = 100 - (100 / (1 + rs))
+        df["rsi_normalized"] = df["rsi"] / 100
         
         # Target: next day return direction
         df["target"] = df["returns"].shift(-1)
@@ -102,7 +127,13 @@ class PredictionAgent:
             return None, None
         
         # Feature columns
-        feature_cols = ["returns", "sma_ratio", "vol_change", "high_low_range"]
+        feature_cols = [
+            "returns", "returns_2", "returns_5",
+            "sma_ratio_5_10", "sma_ratio_10_20",
+            "vol_change", "vol_ratio",
+            "high_low_range", "close_position",
+            "rsi_normalized",
+        ]
         X = df[feature_cols].values
         y = df["target"].values
         
@@ -114,7 +145,7 @@ class PredictionAgent:
         symbol: str = "UNKNOWN",
     ) -> PredictionSignal:
         """
-        Predict next candle direction.
+        Predict next candle direction using ensemble ML.
         
         Args:
             historical_data: DataFrame with OHLCV columns or dict
@@ -156,30 +187,70 @@ class PredictionAgent:
             X_train_scaled = scaler.fit_transform(X_train)
             X_test_scaled = scaler.transform(X_test)
             
-            # Train model
-            model = LinearRegression()
-            model.fit(X_train_scaled, y_train)
+            # Ensemble of models
+            models = {
+                "linear": LinearRegression(),
+                "random_forest": RandomForestRegressor(
+                    n_estimators=50,
+                    max_depth=5,
+                    random_state=42,
+                    n_jobs=-1,
+                ),
+                "gradient_boost": GradientBoostingRegressor(
+                    n_estimators=50,
+                    max_depth=3,
+                    random_state=42,
+                ),
+            }
             
-            # Predict on last data point
-            last_features = X[-1:].reshape(1, -1)
-            last_scaled = scaler.transform(last_features)
-            prediction = model.predict(last_scaled)[0]
+            predictions = {}
+            scores = {}
             
-            # Calculate confidence from R² on test set
-            r2 = model.score(X_test_scaled, y_test)
-            confidence = max(0.3, min(0.9, r2 + 0.3))  # Clamp between 0.3 and 0.9
+            for name, model in models.items():
+                try:
+                    # Train model
+                    model.fit(X_train_scaled, y_train)
+                    
+                    # Predict on last data point
+                    last_features = X[-1:].reshape(1, -1)
+                    last_scaled = scaler.transform(last_features)
+                    pred = model.predict(last_scaled)[0]
+                    
+                    # Calculate R² on test set
+                    r2 = model.score(X_test_scaled, y_test)
+                    
+                    predictions[name] = pred
+                    scores[name] = max(0.0, r2)  # Clamp negative R²
+                except Exception as e:
+                    logger.warning(f"Model {name} failed: {e}")
+            
+            if not predictions:
+                return self._fallback_predict(historical_data, symbol)
+            
+            # Weighted ensemble prediction
+            total_weight = sum(scores.values()) + 0.0001
+            ensemble_pred = sum(
+                pred * scores.get(name, 0) for name, pred in predictions.items()
+            ) / total_weight
+            
+            # Calculate confidence from model agreement
+            pred_directions = [1 if p > 0 else -1 for p in predictions.values()]
+            agreement = abs(sum(pred_directions)) / len(pred_directions)
+            avg_r2 = sum(scores.values()) / len(scores)
+            confidence = max(0.3, min(0.9, (agreement + avg_r2) / 2 + 0.2))
             
             # Determine direction
-            direction = "up" if prediction > 0 else "down"
+            direction = "up" if ensemble_pred > 0 else "down"
             
             # Build reasoning
             recent_returns = df["Close"].pct_change().tail(5).mean() * 100
             trend = "upward" if recent_returns > 0 else "downward"
+            model_votes = f"{sum(1 for d in pred_directions if d > 0)}/{len(pred_directions)} models predict up"
             
             reasoning = (
-                f"Based on {len(X)} historical patterns. "
+                f"Ensemble of {len(predictions)} models on {len(X)} data points. "
                 f"Recent trend: {trend} ({recent_returns:+.2f}% avg). "
-                f"Model predicts {abs(prediction)*100:.2f}% move {direction}."
+                f"{model_votes}. Predicted move: {abs(ensemble_pred)*100:.2f}% {direction}."
             )
             
             logger.info(f"Prediction for {symbol}: {direction} ({confidence:.1%} confidence)")
@@ -188,7 +259,7 @@ class PredictionAgent:
                 symbol=symbol,
                 direction=direction,
                 confidence=confidence,
-                predicted_change_pct=prediction * 100,
+                predicted_change_pct=ensemble_pred * 100,
                 reasoning=reasoning,
             )
             

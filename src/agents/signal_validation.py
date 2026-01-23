@@ -3,6 +3,11 @@ Signal Validation Agent Module
 
 Validates raw trading signals using context, memory lessons, and LLM reasoning.
 Acts as a filter between raw signals and risk management.
+
+Features:
+- Rate limiting to prevent API throttling
+- Circuit breaker for resilience
+- Structured error handling
 """
 
 import json
@@ -13,6 +18,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 
 from src.config import get_settings
+from src.utils.rate_limiter import get_groq_limiter
+from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
+from src.utils.errors import RateLimitError
 from .state import TradingState
 
 logger = logging.getLogger(__name__)
@@ -74,6 +82,7 @@ def signal_validation_node(state: TradingState) -> dict[str, Any]:
     LangGraph node for signal validation.
     
     Validates raw signals and filters out low-quality opportunities.
+    Uses rate limiting and circuit breaker for resilience.
     
     Args:
         state: Current trading state with signals and context
@@ -82,6 +91,10 @@ def signal_validation_node(state: TradingState) -> dict[str, Any]:
         State updates with validated and rejected signals
     """
     logger.info("Running Signal Validation Agent...")
+    
+    settings = get_settings()
+    rate_limiter = get_groq_limiter()
+    circuit_breaker = get_groq_circuit_breaker()
     
     try:
         signals = state.get("signals", [])
@@ -109,15 +122,24 @@ def signal_validation_node(state: TradingState) -> dict[str, Any]:
             signals, regime, regime_confidence, active_strategies, timing_lessons
         )
         
-        # Create and run agent
-        agent = create_validation_agent()
-        
         messages = [
             SystemMessage(content=VALIDATION_SYSTEM_PROMPT),
             HumanMessage(content=context),
         ]
         
-        response = agent.invoke(messages)
+        # Check circuit breaker
+        if not circuit_breaker.is_available:
+            raise CircuitBreakerOpenError("groq_api", circuit_breaker.recovery_time)
+        
+        # Apply rate limiting
+        if settings.enable_rate_limiting:
+            rate_limiter.acquire_sync()
+        
+        def invoke_llm():
+            agent = create_validation_agent()
+            return agent.invoke(messages)
+        
+        response = circuit_breaker.call(invoke_llm)
         result = _parse_validation_response(response.content, signals)
         
         validated = result["validated"]
@@ -131,14 +153,61 @@ def signal_validation_node(state: TradingState) -> dict[str, Any]:
             "messages": [response],
         }
         
+    except CircuitBreakerOpenError as e:
+        logger.warning(f"Circuit breaker open, applying conservative validation: {e}")
+        return _fallback_signal_validation(state, signals, str(e))
+        
     except Exception as e:
         logger.error(f"Signal Validation Agent error: {e}")
-        # Reject all signals on error (safety first)
-        return {
-            "validated_signals": [],
-            "rejected_signals": state.get("signals", []),
-            "errors": state.get("errors", []) + [f"Validation Agent: {str(e)}"],
-        }
+        return _fallback_signal_validation(state, state.get("signals", []), str(e))
+
+
+def _fallback_signal_validation(
+    state: TradingState,
+    signals: list[dict[str, Any]],
+    error_msg: str,
+) -> dict[str, Any]:
+    """
+    Fallback signal validation using rule-based logic.
+    
+    Used when LLM is unavailable. Only passes high-confidence signals
+    from active strategies.
+    """
+    active_strategies = state.get("active_strategies", [])
+    
+    validated = []
+    rejected = []
+    
+    for signal in signals:
+        # Only validate if from active strategy
+        strategy = signal.get("strategy", "")
+        confidence = signal.get("confidence", 0)
+        rr_ratio = signal.get("risk_reward_ratio", 0)
+        
+        # Simple rule-based validation
+        is_valid = (
+            strategy in active_strategies and
+            confidence >= 0.6 and
+            rr_ratio >= 1.5
+        )
+        
+        if is_valid:
+            signal["validation"] = {
+                "confidence": 0.5,
+                "reasoning": "Fallback: Passed basic rule-based checks",
+            }
+            validated.append(signal)
+        else:
+            signal["rejection_reason"] = f"Fallback: Failed rule-based validation"
+            rejected.append(signal)
+    
+    logger.info(f"Fallback validation: {len(validated)} passed, {len(rejected)} rejected")
+    
+    return {
+        "validated_signals": validated,
+        "rejected_signals": rejected,
+        "errors": state.get("errors", []) + [f"Validation Agent fallback: {error_msg}"],
+    }
 
 
 def _build_validation_context(

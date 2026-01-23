@@ -3,6 +3,12 @@ Risk & Compliance Agent Module
 
 Hard gatekeeper that enforces risk rules and compliance constraints.
 No LLM required - uses deterministic rules for safety.
+
+Features:
+- Position sizing limits
+- Sector exposure limits
+- Portfolio correlation checks
+- Drawdown and daily loss limits
 """
 
 import logging
@@ -14,6 +20,64 @@ from src.config import get_settings
 from .state import TradingState
 
 logger = logging.getLogger(__name__)
+
+
+# Sector mappings for NSE stocks (can be extended)
+STOCK_SECTORS = {
+    # Banking
+    "HDFCBANK": "Banking",
+    "ICICIBANK": "Banking",
+    "SBIN": "Banking",
+    "KOTAKBANK": "Banking",
+    "AXISBANK": "Banking",
+    # IT
+    "TCS": "IT",
+    "INFY": "IT",
+    "WIPRO": "IT",
+    "HCLTECH": "IT",
+    "TECHM": "IT",
+    # Pharma
+    "SUNPHARMA": "Pharma",
+    "DRREDDY": "Pharma",
+    "CIPLA": "Pharma",
+    "DIVISLAB": "Pharma",
+    # Auto
+    "TATAMOTORS": "Auto",
+    "MARUTI": "Auto",
+    "M&M": "Auto",
+    "BAJAJ-AUTO": "Auto",
+    # Energy
+    "RELIANCE": "Energy",
+    "ONGC": "Energy",
+    "BPCL": "Energy",
+    "IOC": "Energy",
+    # Metals
+    "TATASTEEL": "Metals",
+    "HINDALCO": "Metals",
+    "JSWSTEEL": "Metals",
+    "COALINDIA": "Metals",
+    # FMCG
+    "HINDUNILVR": "FMCG",
+    "ITC": "FMCG",
+    "NESTLEIND": "FMCG",
+    "BRITANNIA": "FMCG",
+    # Telecom
+    "BHARTIARTL": "Telecom",
+    # Infrastructure
+    "ADANIENT": "Infrastructure",
+    "LT": "Infrastructure",
+    # Financial Services
+    "BAJFINANCE": "Financial Services",
+    "BAJAJFINSV": "Financial Services",
+    "HDFC": "Financial Services",
+}
+
+
+def get_stock_sector(symbol: str) -> str:
+    """Get sector for a stock symbol."""
+    # Normalize symbol (remove exchange suffix)
+    clean_symbol = symbol.replace(".NS", "").upper()
+    return STOCK_SECTORS.get(clean_symbol, "Unknown")
 
 
 @dataclass
@@ -40,15 +104,23 @@ class RiskLimits:
     no_trading_before: str = "09:15"  # Market open
     no_trading_after: str = "15:15"   # Before close
     
+    # Sector exposure limits
+    max_sector_exposure_pct: float = 30.0  # Max % of portfolio per sector
+    max_correlated_positions: int = 3  # Max positions in same sector
+    
     @classmethod
     def from_settings(cls) -> "RiskLimits":
         """Create risk limits from application settings."""
         settings = get_settings()
         return cls(
-            max_position_size_pct=10.0,
+            # Convert fractions to percentages (0.10 -> 10.0%)
+            max_position_size_pct=settings.max_position_pct * 100,
             max_total_exposure_pct=50.0,
             max_daily_trades=settings.max_daily_trades,
             max_daily_loss=settings.daily_loss_limit,
+            no_trading_before=settings.no_trading_before,
+            no_trading_after=settings.no_trading_after,
+            max_sector_exposure_pct=settings.max_sector_exposure * 100,
         )
 
 
@@ -256,7 +328,83 @@ def _run_risk_checks(
         severity="warning",
     ))
     
+    # 11. Sector exposure check (NEW)
+    new_symbol = signal.get("symbol", "")
+    new_sector = get_stock_sector(new_symbol)
+    sector_exposure = _calculate_sector_exposure(portfolio, new_sector, capital)
+    checks.append(RiskCheckResult(
+        passed=sector_exposure <= limits.max_sector_exposure_pct,
+        rule="sector_exposure",
+        message=f"Sector exposure ({new_sector}: {sector_exposure:.1f}%) exceeds limit of {limits.max_sector_exposure_pct}%",
+        severity="warning",
+    ))
+    
+    # 12. Correlated positions check (NEW)
+    sector_positions = _count_sector_positions(portfolio, new_sector)
+    checks.append(RiskCheckResult(
+        passed=sector_positions < limits.max_correlated_positions,
+        rule="correlated_positions",
+        message=f"Too many positions in {new_sector} sector: {sector_positions}/{limits.max_correlated_positions}",
+        severity="warning",
+    ))
+    
     return checks
+
+
+def _calculate_sector_exposure(
+    portfolio: dict[str, Any],
+    sector: str,
+    total_capital: float,
+) -> float:
+    """
+    Calculate current exposure to a sector as percentage of capital.
+    
+    Args:
+        portfolio: Current portfolio state
+        sector: Sector to check
+        total_capital: Total capital
+        
+    Returns:
+        Sector exposure as percentage
+    """
+    if total_capital <= 0:
+        return 0.0
+    
+    positions = portfolio.get("positions", [])
+    sector_value = 0.0
+    
+    for position in positions:
+        pos_symbol = position.get("symbol", "")
+        pos_sector = get_stock_sector(pos_symbol)
+        if pos_sector == sector:
+            # Use market value or cost basis
+            qty = position.get("quantity", 0)
+            price = position.get("current_price", position.get("entry_price", 0))
+            sector_value += qty * price
+    
+    return (sector_value / total_capital) * 100
+
+
+def _count_sector_positions(portfolio: dict[str, Any], sector: str) -> int:
+    """
+    Count number of positions in a sector.
+    
+    Args:
+        portfolio: Current portfolio state
+        sector: Sector to count
+        
+    Returns:
+        Number of positions in the sector
+    """
+    positions = portfolio.get("positions", [])
+    count = 0
+    
+    for position in positions:
+        pos_symbol = position.get("symbol", "")
+        if get_stock_sector(pos_symbol) == sector:
+            count += 1
+    
+    return count
 
 
 def check_kill_switch(state: TradingState, limits: RiskLimits | None = None) -> bool:

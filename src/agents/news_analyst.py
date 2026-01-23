@@ -8,6 +8,8 @@ Features:
 - Fetches news from Google News RSS
 - AI-powered sentiment scoring (-1 to +1)
 - Supports stock-specific and market-wide news
+- TTL caching to reduce API calls
+- Rate limiting and circuit breaker for resilience
 """
 
 import asyncio
@@ -23,6 +25,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 
 from src.config import get_settings
+from src.utils.cache import get_news_cache, get_sentiment_cache
+from src.utils.rate_limiter import get_groq_limiter
+from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -96,11 +101,16 @@ class NewsAnalyst:
     Fetches and analyzes financial news for sentiment.
     
     Uses Google News RSS for headlines and Groq LLM for sentiment scoring.
+    Implements caching, rate limiting, and circuit breaker for resilience.
     """
     
     def __init__(self):
         self.settings = get_settings()
         self._llm = None
+        self._news_cache = get_news_cache()
+        self._sentiment_cache = get_sentiment_cache()
+        self._rate_limiter = get_groq_limiter()
+        self._circuit_breaker = get_groq_circuit_breaker()
     
     def _get_llm(self) -> ChatGroq:
         """Get or create LLM instance."""
@@ -115,7 +125,7 @@ class NewsAnalyst:
     
     def fetch_news(self, query: str, max_items: int = 10) -> list[NewsItem]:
         """
-        Fetch news from Google News RSS.
+        Fetch news from Google News RSS with caching.
         
         Args:
             query: Search query (e.g., "RELIANCE stock" or "Indian stock market")
@@ -124,6 +134,13 @@ class NewsAnalyst:
         Returns:
             List of NewsItem objects
         """
+        # Check cache first
+        cache_key = f"news:{query}:{max_items}"
+        cached = self._news_cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"News cache hit for '{query}'")
+            return cached
+        
         try:
             url = GOOGLE_NEWS_RSS.format(query=quote(query))
             feed = feedparser.parse(url)
@@ -145,6 +162,10 @@ class NewsAnalyst:
                     link=entry.get("link", ""),
                 ))
             
+            # Cache the result
+            ttl = self.settings.cache_news_ttl
+            self._news_cache.set(cache_key, items, ttl)
+            
             logger.info(f"Fetched {len(items)} news items for '{query}'")
             return items
             
@@ -154,7 +175,7 @@ class NewsAnalyst:
     
     async def analyze_sentiment(self, headlines: list[str]) -> tuple[float, str]:
         """
-        Analyze sentiment of headlines using LLM.
+        Analyze sentiment of headlines using LLM with caching.
         
         Args:
             headlines: List of news headlines
@@ -165,7 +186,23 @@ class NewsAnalyst:
         if not headlines:
             return 0.0, "No headlines to analyze"
         
+        # Check cache first
+        headlines_key = "|".join(sorted(headlines[:10]))
+        cache_key = f"sentiment:{hash(headlines_key)}"
+        cached = self._sentiment_cache.get(cache_key)
+        if cached is not None:
+            logger.debug("Sentiment cache hit")
+            return cached
+        
         try:
+            # Check circuit breaker
+            if not self._circuit_breaker.is_available:
+                raise CircuitBreakerOpenError("groq_api", self._circuit_breaker.recovery_time)
+            
+            # Apply rate limiting
+            if self.settings.enable_rate_limiting:
+                self._rate_limiter.acquire_sync()
+            
             llm = self._get_llm()
             
             # Format headlines for analysis
@@ -176,7 +213,10 @@ class NewsAnalyst:
                 HumanMessage(content=f"Analyze these headlines:\n\n{headlines_text}"),
             ]
             
-            response = llm.invoke(messages)
+            def invoke_llm():
+                return llm.invoke(messages)
+            
+            response = self._circuit_breaker.call(invoke_llm)
             content = response.content.strip()
             
             # Parse JSON response
@@ -199,7 +239,15 @@ class NewsAnalyst:
             # Clamp to valid range
             sentiment = max(-1.0, min(1.0, sentiment))
             
+            # Cache the result
+            ttl = self.settings.cache_sentiment_ttl
+            self._sentiment_cache.set(cache_key, (sentiment, reasoning), ttl)
+            
             return sentiment, reasoning
+            
+        except CircuitBreakerOpenError as e:
+            logger.warning(f"Circuit breaker open for sentiment: {e}")
+            return 0.0, "Circuit breaker open - using neutral sentiment"
             
         except Exception as e:
             logger.error(f"Error analyzing sentiment: {e}")

@@ -3,6 +3,11 @@ Market Regime Agent Module
 
 Classifies the current market regime based on volatility, trend, and market conditions.
 Runs on a slow cadence and provides context for strategy selection.
+
+Features:
+- Rate limiting to prevent API throttling
+- Circuit breaker for resilience
+- Structured error handling
 """
 
 import json
@@ -14,6 +19,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 
 from src.config import get_settings
+from src.utils.rate_limiter import get_groq_limiter
+from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
+from src.utils.errors import RateLimitError, LLMResponseError
 from .state import MarketRegime, TradingState
 
 logger = logging.getLogger(__name__)
@@ -61,6 +69,7 @@ def market_regime_node(state: TradingState) -> dict[str, Any]:
     LangGraph node for market regime classification.
     
     Analyzes current market conditions and classifies the regime.
+    Uses rate limiting and circuit breaker for resilience.
     
     Args:
         state: Current trading state with market data and indicators
@@ -69,6 +78,10 @@ def market_regime_node(state: TradingState) -> dict[str, Any]:
         State updates with regime classification
     """
     logger.info("Running Market Regime Agent...")
+    
+    settings = get_settings()
+    rate_limiter = get_groq_limiter()
+    circuit_breaker = get_groq_circuit_breaker()
     
     try:
         # Extract relevant data for regime analysis
@@ -90,30 +103,57 @@ def market_regime_node(state: TradingState) -> dict[str, Any]:
             HumanMessage(content=context),
         ]
         
+        # Check circuit breaker state
+        if not circuit_breaker.is_available:
+            raise CircuitBreakerOpenError("groq_api", circuit_breaker.recovery_time)
+        
+        # Apply rate limiting before LLM call
+        if settings.enable_rate_limiting:
+            rate_limiter.acquire_sync()
+        
         # Try primary model first, fallback on rate limit
-        settings = get_settings()
         models_to_try = [settings.groq_model_primary, settings.groq_model_fallback]
         
         response = None
+        last_error = None
+        
         for model_name in models_to_try:
             try:
-                agent = ChatGroq(
-                    api_key=settings.groq_api_key.get_secret_value(),
-                    model_name=model_name,
-                    temperature=settings.groq_temperature,
-                    max_tokens=1024,
-                )
-                response = agent.invoke(messages)
+                def invoke_llm():
+                    agent = ChatGroq(
+                        api_key=settings.groq_api_key.get_secret_value(),
+                        model_name=model_name,
+                        temperature=settings.groq_temperature,
+                        max_tokens=1024,
+                    )
+                    return agent.invoke(messages)
+                
+                # Use circuit breaker for the LLM call
+                response = circuit_breaker.call(invoke_llm)
                 logger.info(f"Regime agent using model: {model_name}")
                 break
+                
             except Exception as model_error:
-                if "rate_limit" in str(model_error).lower() or "429" in str(model_error):
+                last_error = model_error
+                error_str = str(model_error).lower()
+                
+                if "rate_limit" in error_str or "429" in error_str:
                     logger.warning(f"Rate limit on {model_name}, trying fallback...")
+                    # Wait a bit before trying fallback
+                    if settings.enable_rate_limiting:
+                        import time
+                        time.sleep(2)
                     continue
-                raise model_error
+                elif isinstance(model_error, CircuitBreakerOpenError):
+                    raise
+                else:
+                    logger.error(f"LLM error on {model_name}: {model_error}")
+                    continue
         
         if response is None:
-            raise Exception("All models rate limited")
+            if last_error:
+                raise last_error
+            raise RateLimitError("groq", retry_after=60.0)
         
         # Parse response
         result = _parse_regime_response(response.content)
@@ -127,36 +167,58 @@ def market_regime_node(state: TradingState) -> dict[str, Any]:
             "messages": [response],
         }
         
+    except CircuitBreakerOpenError as e:
+        logger.warning(f"Circuit breaker open: {e}")
+        return _fallback_regime_classification(state, f"Circuit breaker open: {e}")
+        
+    except RateLimitError as e:
+        logger.warning(f"Rate limit exceeded: {e}")
+        return _fallback_regime_classification(state, f"Rate limited: {e}")
+        
     except Exception as e:
         logger.error(f"Market Regime Agent error: {e}")
-        # Return a default trending regime based on market data
-        market_data = state.get("market_data", {})
-        avg_change = 0.0
-        for data in market_data.values():
-            if isinstance(data, dict):
-                avg_change += data.get("change_percent", 0)
-        if market_data:
-            avg_change /= len(market_data)
+        return _fallback_regime_classification(state, str(e))
+
+
+def _fallback_regime_classification(state: TradingState, error_msg: str) -> dict[str, Any]:
+    """
+    Fallback regime classification based on market data.
+    
+    Used when LLM is unavailable due to rate limits or errors.
+    """
+    market_data = state.get("market_data", {})
+    avg_change = 0.0
+    count = 0
+    
+    for data in market_data.values():
+        if isinstance(data, dict):
+            change = data.get("change_percent", 0)
+            if change is not None:
+                avg_change += change
+                count += 1
+    
+    if count > 0:
+        avg_change /= count
+    
+    # Infer regime from average market change
+    if avg_change > 0.5:
+        regime = "trending_up"
+        confidence = 0.5
+    elif avg_change < -0.5:
+        regime = "trending_down"
+        confidence = 0.5
+    else:
+        regime = "ranging"
+        confidence = 0.4
         
-        # Infer regime from average market change
-        if avg_change > 0.5:
-            regime = "trending_up"
-            confidence = 0.5
-        elif avg_change < -0.5:
-            regime = "trending_down"
-            confidence = 0.5
-        else:
-            regime = "ranging"
-            confidence = 0.4
-            
-        logger.info(f"Using fallback regime: {regime} (inferred from avg change: {avg_change:.2f}%)")
-        
-        return {
-            "regime": regime,
-            "regime_confidence": confidence,
-            "regime_reasoning": f"Fallback: Inferred from average market change ({avg_change:.2f}%)",
-            "errors": state.get("errors", []) + [f"Regime Agent fallback: {str(e)}"],
-        }
+    logger.info(f"Using fallback regime: {regime} (inferred from avg change: {avg_change:.2f}%)")
+    
+    return {
+        "regime": regime,
+        "regime_confidence": confidence,
+        "regime_reasoning": f"Fallback: Inferred from average market change ({avg_change:.2f}%). Error: {error_msg}",
+        "errors": state.get("errors", []) + [f"Regime Agent fallback: {error_msg}"],
+    }
 
 
 def _build_regime_context(

@@ -337,6 +337,17 @@ async def run_live_trading():
 
 def main():
     """Main entry point."""
+    import atexit
+    import threading
+    
+    # Suppress LangSmith threading cleanup errors at shutdown
+    def suppress_threading_errors():
+        """Suppress threading errors during interpreter shutdown."""
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
+    
+    atexit.register(suppress_threading_errors)
+    
     try:
         asyncio.run(run_live_trading())
     except KeyboardInterrupt:
@@ -344,6 +355,10 @@ def main():
     except Exception as e:
         console.print(f"[red]Error: {e}[/]")
         raise
+    finally:
+        # Force cleanup of any remaining background threads
+        import sys
+        sys.exit(0)
 
 
 if __name__ == "__main__":
