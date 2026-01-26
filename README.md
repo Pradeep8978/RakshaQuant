@@ -70,6 +70,10 @@ No more hardcoded watchlists! The system now **automatically discovers** which s
 
 RakshaQuant uses a **hierarchical agent graph** where specialized agents collaborate to make trading decisions.
 
+### High Level Design(HLD)
+<img width="9386" height="5219" alt="tradingagent HLD" src="https://github.com/user-attachments/assets/d507acb3-a453-40b6-a89d-859fa840fd4a" />
+
+
 ### System Overview
 
 ```mermaid
@@ -488,5 +492,6 @@ All these questions can be answered by inspecting the traces in the LangSmith da
 <div align="center">
     <b>Built with ❤️ by a solo developer exploring the BFSI × AI frontier</b>
 </div>
+
 
 
