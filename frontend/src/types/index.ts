@@ -11,6 +11,12 @@ export interface SummaryData {
   regime_confidence: number;
   active_strategies: string[];
   is_halted?: boolean;
+  market_mood?: {
+    score: number;
+    label: string;
+    description: string;
+  };
+  latest_predictions?: any[];
   latest_vision?: Record<string, {
     symbol: string;
     pattern: string;

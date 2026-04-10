@@ -262,14 +262,15 @@ async def run_live_trading():
                 strategies = final_state.get("active_strategies", [])
                 vision = final_state.get("vision_analysis", {})
                 volume = final_state.get("volume_analysis", {})
-                news = final_state.get("news_sentiment", {}).get("market", {})
                 
                 memory_db.set_state("latest_regime", regime)
                 memory_db.set_state("regime_confidence", str(confidence))
                 memory_db.set_state("active_strategies", ",".join(strategies))
-                memory_db.set_state("latest_vision", json.dumps(vision) if vision else "{}")
-                memory_db.set_state("latest_volume", json.dumps(volume) if volume else "{}")
-                memory_db.set_state("latest_news", json.dumps(news) if news else "{}")
+                memory_db.set_state("latest_volume", json.dumps(final_state.get("volume_analysis", {})))
+                memory_db.set_state("latest_vision", json.dumps(final_state.get("vision_analysis", {})))
+                memory_db.set_state("latest_predictions", json.dumps(final_state.get("prediction_signals", [])))
+                memory_db.set_state("market_mood", json.dumps(final_state.get("market_mood", {})))
+                memory_db.set_state("latest_news", json.dumps(final_state.get("news_sentiment", {})))
                 
                 # Store some rejected/validated info as summary
                 memory_db.set_state("last_cycle_time", datetime.now().isoformat())

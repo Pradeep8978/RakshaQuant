@@ -180,7 +180,7 @@ def risk_compliance_node(state: TradingState) -> dict[str, Any]:
     warnings = []
     
     for signal in validated_signals:
-        checks = _run_risk_checks(signal, portfolio, daily_stats, limits)
+        checks = _run_risk_checks(signal, state, limits)
         
         # Collect results
         blocking_failures = [c for c in checks if not c.passed and c.severity == "block"]
@@ -220,14 +220,17 @@ def risk_compliance_node(state: TradingState) -> dict[str, Any]:
 
 def _run_risk_checks(
     signal: dict[str, Any],
-    portfolio: dict[str, Any],
-    daily_stats: dict[str, Any],
+    state: TradingState,
     limits: RiskLimits,
 ) -> list[RiskCheckResult]:
     """Run all risk checks on a signal."""
     
     checks = []
-    
+    portfolio = state.get("portfolio", {})
+    daily_stats = state.get("daily_stats", {})
+    symbol = signal.get("symbol", "")
+    capital = portfolio.get("capital", 100000)
+
     # 1. Daily trade limit
     trades_today = daily_stats.get("trades_count", 0)
     checks.append(RiskCheckResult(
@@ -298,7 +301,6 @@ def _run_risk_checks(
     
     # 8. Drawdown check
     max_dd = daily_stats.get("max_drawdown", 0)
-    capital = portfolio.get("capital", 100000)
     dd_pct = (max_dd / capital * 100) if capital > 0 else 0
     checks.append(RiskCheckResult(
         passed=dd_pct < limits.max_drawdown_pct,
@@ -308,7 +310,6 @@ def _run_risk_checks(
     ))
     
     # 9. Duplicate position check
-    symbol = signal.get("symbol", "")
     existing_positions = [p.get("symbol") for p in portfolio.get("positions", [])]
     checks.append(RiskCheckResult(
         passed=symbol not in existing_positions,
@@ -328,9 +329,8 @@ def _run_risk_checks(
         severity="warning",
     ))
     
-    # 11. Sector exposure check (NEW)
-    new_symbol = signal.get("symbol", "")
-    new_sector = get_stock_sector(new_symbol)
+    # 11. Sector exposure check
+    new_sector = get_stock_sector(symbol)
     sector_exposure = _calculate_sector_exposure(portfolio, new_sector, capital)
     checks.append(RiskCheckResult(
         passed=sector_exposure <= limits.max_sector_exposure_pct,
@@ -339,7 +339,7 @@ def _run_risk_checks(
         severity="warning",
     ))
     
-    # 12. Correlated positions check (NEW)
+    # 12. Correlated positions check
     sector_positions = _count_sector_positions(portfolio, new_sector)
     checks.append(RiskCheckResult(
         passed=sector_positions < limits.max_correlated_positions,
@@ -347,6 +347,63 @@ def _run_risk_checks(
         message=f"Too many positions in {new_sector} sector: {sector_positions}/{limits.max_correlated_positions}",
         severity="warning",
     ))
+
+    # 13. Multimodal Vision Confirmation (NEW)
+    vision_data = state.get("vision_analysis", {})
+    if symbol in vision_data:
+        v_analysis = vision_data[symbol]
+        passed_vision = v_analysis.get("confidence", 0) > 0.4
+        checks.append(RiskCheckResult(
+            passed=passed_vision,
+            rule="vision_confirmation",
+            message=f"Vision analysis failed to confirm pattern: {v_analysis.get('pattern', 'None')}",
+            severity="warning",
+        ))
+
+    # 14. Institutional Volume Alignment (NEW)
+    volume_data = state.get("volume_analysis", {})
+    if symbol in volume_data:
+        vol = volume_data[symbol]
+        side = signal.get("side", "").lower()
+        
+        in_distribution = "Distribution" in vol.get("institutional_activity", "")
+        in_accumulation = "Accumulation" in vol.get("institutional_activity", "")
+        intensity = vol.get("activity_intensity", 0)
+        
+        passed_volume = True
+        msg = "Institutional alignment confirmed"
+        
+        if side == "buy" and in_distribution:
+            passed_volume = False
+            msg = f"BUY signal contradicts institutional distribution in {symbol}"
+        elif side == "sell" and in_accumulation:
+            passed_volume = False
+            msg = f"SELL signal contradicts institutional accumulation in {symbol}"
+            
+        checks.append(RiskCheckResult(
+            passed=passed_volume,
+            rule="institutional_alignment",
+            message=msg,
+            severity="block" if intensity > 2.0 else "warning",
+        ))
+
+    # 15. ML Forecast agreement (NEW)
+    predictions = state.get("prediction_signals", [])
+    symbol_pred = next((p for p in predictions if p.get("symbol") == symbol), None)
+    if symbol_pred:
+        side = signal.get("side", "").lower()
+        pred_dir = symbol_pred.get("direction", "").lower()
+        pred_conf = symbol_pred.get("confidence", 0)
+        
+        passed_ml = (side == pred_dir)
+        checks.append(RiskCheckResult(
+            passed=passed_ml,
+            rule="ml_forecast_agreement",
+            message=f"ML Ensemble predicts {pred_dir.upper()} ({pred_conf:.1%}) - contradicts {side.upper()} signal",
+            severity="block" if pred_conf > 0.7 else "warning",
+        ))
+    
+    return checks
     
     return checks
 

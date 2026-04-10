@@ -1,497 +1,139 @@
 <div align="center">
 
-# 🛡️ RakshaQuant
+# 🛡️ RakshaQuant v4.0 (Enterprise)
+### Autonomous Agentic Intelligence for High-Probability Trading
+_Orchestrating 9 Specialized Agents through LangGraph, Multimodal Vision, and Ensemble ML_
 
-### Agentic Paper Trading System for NSE
-
-_Where Large Language Models Meet Financial Markets_
-
-[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Powered-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![LangSmith](https://img.shields.io/badge/LangSmith-Observable-green.svg)](https://smith.langchain.com)
-[![Groq](https://img.shields.io/badge/Groq-Fast%20Inference-purple.svg)](https://groq.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform: Web](https://img.shields.io/badge/Platform-Web Dashboard-blue.svg)](https://react.dev)
+[![LangGraph](https://img.shields.io/badge/LangGraph-Orchestrated-orange.svg)](https://github.com/langchain-ai/langgraph)
+[![Vision AI](https://img.shields.io/badge/Vision%20AI-Llama 3.2-purple.svg)](https://groq.com)
+[![ML Ensemble](https://img.shields.io/badge/ML%20Ensemble-RF%20+%20GBT-yellow.svg)](https://scikit-learn.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green.svg)](https://fastapi.tiangolo.com)
 
 </div>
 
 ---
 
-## 🎯 About This Project
+## 🎯 Project Thesis
+**RakshaQuant** (रक्षा = Protection) is an autonomous agentic trading ecosystem designed to solve the "Black Box" problem in algorithmic trading. Most bots fail because they rely on single-dimensionality (e.g., just indicators). 
 
-**RakshaQuant** (रक्षा = Protection in Sanskrit) is an autonomous agentic trading system designed for the Indian NSE market. It leverages **LangGraph** to orchestrate a team of specialized AI agents that analyze market data, formulate strategies, validate signals, and manage risk in real-time.
-
-Unlike traditional algorithmic trading that relies solely on hardcoded logic, RakshaQuant introduces **cognitive flexibility**—using LLMs to reason about market regimes (bull/bear/ranging) and adapt its strategies accordingly.
-
-### Key Capabilities
-
-- **🤖 Cognitive Agents**: Multi-agent system that "thinks" before it trades
-- **🌐 Live Market Analysis**: Real-time multi-stock monitoring via WebSocket
-- **🛡️ Dynamic Risk Management**: Agents that can veto trades based on risk parameters
-- **📊 Professional Dashboard**: Real-time CLI interface for monitoring agent thought processes
-- **📝 Self-Improving Memory**: Learns from past mistakes using semantic memory
-- **🆓 100% Free Tier Mode**: Paper trading without any paid API dependencies
+RakshaQuant utilizes a **9-Agent "War Room"** architecture. By the time a trade is executed, it has been scrutinized by a News analyst, visual patterns have been "seen" by a Vision model, statistical probability has been verified by an ML Ensemble, and institutional liquidity has been mapped.
 
 ---
 
-## 🆕 What's New (v2.0)
+## 🏗️ Detailed Architecture
 
-### Free Tier Paper Trading
-
-No paid broker API required! RakshaQuant now supports **100% free paper trading**:
-
-| Feature             | Free Tier            | Description                              |
-| ------------------- | -------------------- | ---------------------------------------- |
-| **Market Data**     | ✅ YFinance          | Real NSE quotes (1-15 min delay)         |
-| **Execution**       | ✅ Local Paper       | Virtual ₹10L wallet simulation           |
-| **News Sentiment**  | ✅ Google RSS + Groq | AI-powered news analysis                 |
-| **Stock Discovery** | ✅ Dynamic           | Finds trending stocks from news & movers |
-
-### Dynamic Stock Discovery
-
-No more hardcoded watchlists! The system now **automatically discovers** which stocks to trade based on:
-
-- 📰 **News Mentions** - Scans Google News for trending stocks
-- 📈 **Market Movers** - Identifies top gainers/losers
-
-### New Modules
-
-| Module                          | Purpose                               |
-| ------------------------------- | ------------------------------------- |
-| `src/utils/rate_limiter.py`     | Prevents Groq API rate limit errors   |
-| `src/utils/cache.py`            | TTL cache for news, quotes, sentiment |
-| `src/notifications/telegram.py` | Trade alerts on your phone            |
-| `src/backtesting/`              | Test strategies on historical data    |
-| `src/market/stock_discovery.py` | Dynamic stock discovery               |
-| `src/execution/paper_engine.py` | Local paper trading engine            |
-
----
-
-## 🏗️ Architecture
-
-RakshaQuant uses a **hierarchical agent graph** where specialized agents collaborate to make trading decisions.
-
-### High Level Design(HLD)
-<img width="9386" height="5219" alt="tradingagent HLD" src="https://github.com/user-attachments/assets/d507acb3-a453-40b6-a89d-859fa840fd4a" />
-
-
-### System Overview
+### 🧠 The Intelligence Orchestration Layer (LangGraph)
+Unlike linear scripts, RakshaQuant uses a **Directed Acyclic Graph (DAG)** to manage state. Every agent node receives the `TradingState`, performs its specific specialized task, and passes the context forward.
 
 ```mermaid
-flowchart TB
-    subgraph External["🌐 External Services"]
-        GROQ["Groq LLM API<br/>llama-3.3-70b"]
-        YFINANCE["Yahoo Finance<br/>(Free Market Data)"]
-        DHAN["DhanHQ Broker API<br/>(Optional)"]
-        LANGSMITH["LangSmith<br/>Observability"]
-        TELEGRAM["Telegram Bot API"]
-        POSTGRES[("PostgreSQL<br/>Agent Memory")]
-    end
-
-    subgraph Config["⚙️ Configuration Layer"]
-        SETTINGS["Settings<br/>(Pydantic)"]
-        ENV[".env File"]
-    end
-
-    subgraph Market["📊 Market Data Layer"]
-        direction TB
-        MANAGER["MarketDataManager"]
-
-        subgraph DataSources["Data Sources"]
-            WS_FEED["WebSocket Feed<br/>(Live Hours)"]
-            YF_FEED["YFinance Feed<br/>(Free Tier)"]
-            SIM_FEED["Simulated Data<br/>(After Hours)"]
-        end
-
-        INDICATORS["Indicator Calculator<br/>(RSI, MACD, Bollinger)"]
-        SIGNALS["Signal Engine<br/>(Buy/Sell Generation)"]
-        DISCOVERY["Stock Discovery<br/>(NSE Top Movers)"]
-    end
-
-    subgraph Agents["🤖 Agent Decision Layer (LangGraph)"]
-        direction TB
-        STATE["TradingState<br/>(TypedDict)"]
-
-        subgraph AgentGraph["Agent Workflow Graph"]
-            direction LR
-            REGIME["Market Regime Agent"]
-            STRATEGY["Strategy Selection Agent"]
-            VALIDATION["Signal Validation Agent"]
-            RISK["Risk & Compliance Agent"]
-        end
-
-        subgraph SupportAgents["Support Agents"]
-            NEWS["News Analyst Agent"]
-            SENTIMENT["Sentiment Agent"]
-            PREDICTION["Prediction Agent"]
-        end
-    end
-
-    subgraph Memory["🧠 Memory & Learning Layer"]
-        direction TB
-        MEMORY_DB["AgentMemoryDB<br/>(Lessons Storage)"]
-        CLASSIFIER["MistakeClassifier<br/>(Loss Analysis)"]
-        ANALYZER["TradeAnalyzer<br/>(Outcome Review)"]
-        INJECTOR["MemoryInjector<br/>(Context Injection)"]
-    end
-
-    subgraph Execution["⚡ Execution Layer"]
-        direction TB
-        ADAPTER["ExecutionAdapter"]
-
-        subgraph ExecutionModes["Execution Modes"]
-            LOCAL_PAPER["LocalPaperEngine<br/>(100% Free)"]
-            DHAN_PAPER["Dhan Sandbox<br/>(Paper Trading)"]
-            LIVE["Live Trading"]
-        end
-
-        JOURNAL["TradeJournal<br/>(History Logging)"]
-    end
-
-    subgraph Backtest["📈 Backtesting"]
-        BT_ENGINE["BacktestEngine"]
-        STRATEGIES["Strategy Library<br/>(SMA Cross, RSI, etc.)"]
-    end
-
-    %% Configuration connections
-    ENV --> SETTINGS
-    SETTINGS --> MANAGER
-    SETTINGS --> ADAPTER
-    SETTINGS --> MEMORY_DB
-
-    %% Market data flow
-    YFINANCE --> YF_FEED
-    DHAN --> WS_FEED
-    WS_FEED --> MANAGER
-    YF_FEED --> MANAGER
-    SIM_FEED --> MANAGER
-    MANAGER --> INDICATORS
-    INDICATORS --> SIGNALS
-    DISCOVERY --> MANAGER
-
-    %% Agent workflow
-    SIGNALS --> STATE
-    STATE --> REGIME
-    REGIME -->|"regime + confidence"| STRATEGY
-    STRATEGY -->|"active strategies"| VALIDATION
-    VALIDATION -->|"validated signals"| RISK
-    RISK -->|"approved trades"| STATE
-
-    %% Support agents
-    NEWS --> STATE
-    SENTIMENT --> STATE
-    PREDICTION --> STATE
-
-    %% Memory feedback loop
-    INJECTOR -->|"inject lessons"| STATE
-    STATE -->|"trade outcomes"| ANALYZER
-    ANALYZER --> CLASSIFIER
-    CLASSIFIER --> MEMORY_DB
-    MEMORY_DB --> INJECTOR
-
-    %% Execution
-    STATE -->|"trades_to_execute"| ADAPTER
-    ADAPTER --> LOCAL_PAPER
-    ADAPTER --> DHAN_PAPER
-    ADAPTER --> LIVE
-    ADAPTER --> JOURNAL
-    JOURNAL --> ANALYZER
-
-    %% Observability
-    REGIME --> LANGSMITH
-    STRATEGY --> LANGSMITH
-    VALIDATION --> LANGSMITH
-    RISK --> LANGSMITH
-
-    %% LLM connections
-    GROQ --> REGIME
-    GROQ --> STRATEGY
-    GROQ --> NEWS
-
-    %% Notifications
-    RISK -->|"trade alerts"| TELEGRAM
-
-    %% Storage
-    MEMORY_DB --> POSTGRES
-
-    %% Backtesting
-    YF_FEED --> BT_ENGINE
-    STRATEGIES --> BT_ENGINE
-```
-
-### Agent Workflow Detail
-
-The 4-agent decision pipeline with conditional edges:
-
-```mermaid
-flowchart LR
-    START((Start)) --> REGIME["🎯 Market Regime<br/>Agent"]
-
-    REGIME -->|"confidence < 0.3"| END1((End))
-    REGIME -->|"confidence ≥ 0.3"| STRATEGY["📊 Strategy Selection<br/>Agent"]
-
-    STRATEGY --> VALIDATION["✓ Signal Validation<br/>Agent"]
-
-    VALIDATION -->|"no validated<br/>signals"| END2((End))
-    VALIDATION -->|"has signals"| RISK["🛡️ Risk & Compliance<br/>Agent"]
-
-    RISK --> END3((End))
-
-    subgraph Legend["State Fields Modified"]
-        L1["regime, regime_confidence"]
-        L2["active_strategies"]
-        L3["validated_signals, rejected_signals"]
-        L4["approved_trades, risk_warnings"]
-    end
-
-    REGIME -.-> L1
-    STRATEGY -.-> L2
-    VALIDATION -.-> L3
-    RISK -.-> L4
-```
-
-### Memory Feedback Loop
-
-How the system learns from trade losses:
-
-```mermaid
-flowchart TB
-    subgraph TradingCycle["Trading Cycle"]
-        TRADE["Trade Executed"]
-        OUTCOME["Trade Outcome<br/>(Win/Loss)"]
-    end
-
-    subgraph AnalysisPhase["Loss Analysis"]
-        ANALYZER["TradeAnalyzer"]
-        CLASSIFIER["MistakeClassifier"]
-    end
-
-    subgraph Storage["Persistent Memory"]
-        DB[("PostgreSQL<br/>agent_memory table")]
-        DECAY["Time Decay<br/>Scoring"]
-    end
-
-    subgraph Injection["Next Trading Cycle"]
-        INJECTOR["MemoryInjector"]
-        CONTEXT["Agent Context<br/>(Top 5 Lessons)"]
-    end
-
-    TRADE --> OUTCOME
-    OUTCOME -->|"if loss"| ANALYZER
-    ANALYZER --> CLASSIFIER
-    CLASSIFIER -->|"lesson_id, category,<br/>severity, description"| DB
-    DB --> DECAY
-    DECAY --> DB
-    DB --> INJECTOR
-    INJECTOR --> CONTEXT
-    CONTEXT -->|"memory_lessons"| TRADE
+graph TD
+    START((START)) --> NEWS[Agent 1: News Catalyst]
+    NEWS --> MOOD[Agent 2: Market Mood Index]
+    MOOD --> REGIME[Agent 3: Regime Classifier]
+    
+    REGIME -- "Confidence < 40%" --> REJECT[End Cycle]
+    REGIME -- "Confidence > 40%" --> VOLUME[Agent 4: Institutional Footprint]
+    
+    VOLUME --> STRATEGY[Agent 5: Strategy Selection]
+    STRATEGY --> VALIDATOR[Agent 6: Signal Validation]
+    VALIDATOR --> PREDICT[Agent 7: ML Ensemble Predictor]
+    
+    PREDICT --> VISION[Agent 8: Llama 3.2 Vision Analyst]
+    VISION --> RISK[Agent 9: Risk & Compliance]
+    
+    RISK -- "Approved" --> EXECUTE[Execution Engine]
+    RISK -- "Veto" --> REJECT
 ```
 
 ---
 
-## ✨ Features
+## 🛠️ The 9-Agent "War Room"
 
-### 🤖 The Agent Team
-
-| Agent                   | Responsibilities                                                                                         | Model (Groq)    |
-| ----------------------- | -------------------------------------------------------------------------------------------------------- | --------------- |
-| **Market Regime**       | Analyzes volatility and price action to determine if market is Trending (Up/Down), Ranging, or Volatile. | `llama-3.3-70b` |
-| **Strategy Selection**  | Selects the best trading strategies (Momentum, Mean Reversion, etc.) for the current regime.             | `llama-3.3-70b` |
-| **Signal Validation**   | Reviews technical signals against the current thesis to filter out false positives.                      | `llama-3.3-70b` |
-| **Risk Manager**        | Deterministic agent that enforces position sizing, stop-losses, and kill switches.                       | _Rules Engine_  |
-| **News Analyst** 🆕     | Scans Google News RSS and scores sentiment using AI.                                                     | `llama-3.3-70b` |
-| **Sentiment Agent** 🆕  | Calculates Market Mood Index (0-100) for fear/greed signals.                                             | _Hybrid_        |
-| **Prediction Agent** 🆕 | ML-based price direction prediction using Linear Regression.                                             | _scikit-learn_  |
-
-### 🖥️ Professional Dashboard
-
-<img width="1342" height="665" alt="image" src="https://github.com/user-attachments/assets/9ed35205-7878-4114-a438-eb50ae6107d9" />
-
-A rich CLI dashboard built with `rich` providing real-time visibility into the system:
-
-- **Market Overview**: Live ticker for 10+ NSE stocks
-- **Agent Reasoning**: See _why_ the AI made a decision
-- **P&L Tracking**: Real-time unrealized/realized profit monitoring
-- **Visual Indicators**: Progress bars for trade confidence and win rates
-
-### 🛡️ Robust Engineering
-
-- **Live/Sim Switch**: Automatically switches to simulated data when markets are closed
-- **Rate Limit Handling**: Token bucket rate limiter with exponential backoff
-- **Caching**: TTL cache for news, quotes, and sentiment data
-- **Confidence Scoring**: Every decision comes with a confidence score (0-100%)
-- **Observability**: Full decision traces synced to LangSmith
+| # | Agent | Logic | Purpose |
+| :--- | :--- | :--- | :--- |
+| 1 | **News Analyst** | RSS + Llama-3 Sentiment | Identifies market-moving catalysts (Earnings, Macro). |
+| 2 | **Market Mood** | Collective Sentiment Scores | Calculates a global **Fear & Greed Index** (0-100). |
+| 3 | **Regime Classifier** | ADX + ATR + LLM Reasoning | Defines if the market is Bullish, Bearish, or Ranging. |
+| 4 | **Volume Footprint** | TPO / Volume Profiling | Maps institutional Point of Control (PoC) and Value Areas. |
+| 5 | **Strategy Selector** | Multi-Algo Routing | Pivots logic (Trend Following vs. Mean Reversion). |
+| 6 | **Signal Validator** | Quantitative Math | Cross-checks EMA/RSI clusters for confluence. |
+| 7 | **ML Predictor** | Ensemble (RF + GBT + LR) | Statistical price forecasting with confidence scores. |
+| 8 | **Vision Analyst** | Llama 3.2 Vision | "Sees" geometric chart patterns (Flags, Wedges). |
+| 9 | **Risk Compliance** | Deterministic Hard Gates | The final veto based on drawdown and drawdown limits. |
 
 ---
 
-## 🚀 Quick Start
+## 🏢 Enterprise Dashboard Features
 
-### Prerequisites
+### 📈 Machine Learning Analytics
+A dedicated ML dashboard section showing directional forecasts from our **Ensemble Classifier**. It breaks down the confidence level and reasoning from the RandomForest and Gradient Boosting models, ensuring no trade is taken against statistical odds.
 
+### 👁️ Multimodal Visual Trace
+The system generates SVG charts of current price action, encodes them, and sends them to **Llama 3.2 Vision**. The agent's visual reasoning logs are displayed in the "AI Analysis" tab, allowing you to see *why* it thinks a pattern looks bullish/bearish.
+
+### 🌊 Institutional Liquidity Tracker
+Uses high-precision volume distribution to find "High Volume Nodes." Trading occurs only when price is interacting with institutional value areas.
+
+### 📉 Global Kill-Switch
+A centralized emergency mechanism that instantly shuts down all agents, closes all open positions, and prevents further execution if system-wide anomalies or drawdown limits are hit.
+
+---
+
+## 🏗️ Technical Stack
+
+- **Core Engine**: Python 3.12+ managed via `uv`
+- **Orchestration**: LangGraph (LangChain ecosystem)
+- **Primary LLMs**: Groq (Llama 3.1 70B & Llama 3.2 11B Vision)
+- **ML Layer**: Scikit-Learn (Ensemble Regressors/Classifiers)
+- **Data Pipeline**: Yahoo Finance & Interactive Brokers (via MarketDataManager)
+- **Backend API**: FastAPI (High-performance async server)
+- **Frontend**: React 18, Tailwind CSS, Lucide Icons, Glassmorphism design
+- **State Persistence**:Local SQLite (AgentMemoryDB)
+
+---
+
+## 🚀 Getting Started
+
+### 1. Requirements
+- Groq API Key (Register at [console.groq.com](https://console.groq.com))
 - Python 3.12+
-- [uv](https://github.com/astral-sh/uv) (recommended) or pip
-- [Groq API Key](https://console.groq.com) (for LLM inference) - **FREE**
-- [DhanHQ Account](https://dhan.co) (optional, for live trading only)
+- Node.js 18+
 
-### Installation
-
+### 2. Deployment
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/RakshaQuant.git
 cd RakshaQuant
 
-# Install dependencies with uv (fast!)
+# Initialize Backend
 uv sync
+cp .env.example .env # Add your GROQ_API_KEY
 
-# Configure environment
-cp .env.example .env
-# Edit .env and add your API keys
+# Initialize Dashboard
+cd frontend && npm install
 ```
 
-### Configuration
-
-Edit `.env` for your setup:
-
+### 3. Execution
 ```bash
-# Required
-GROQ_API_KEY=your_groq_api_key
-
-# Free Tier Mode (default)
-MARKET_DATA_SOURCE=yfinance
-EXECUTION_MODE=local_paper
-PAPER_WALLET_BALANCE=1000000
-
-# Optional: Telegram Alerts
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
-```
-
-### Running the System
-
-**1. Check Configuration**
-
-```bash
-uv run python scripts/check_config.py
-```
-
-**2. Run Paper Trading Dashboard**
-
-```bash
+# Terminal A: Trading Core
 uv run python scripts/run_live_trading.py
-```
 
-**3. Run Backtest**
+# Terminal B: Web API
+uv run python scripts/dashboard_api.py
 
-```bash
-uv run python src/backtesting/engine.py
-```
-
----
-
-## 📁 Project Structure
-
-```
-RakshaQuant/
-├── src/
-│   ├── agents/              # 🧠 The "Brain" of the system
-│   │   ├── market_regime.py
-│   │   ├── strategy_selection.py
-│   │   ├── signal_validation.py
-│   │   ├── risk_compliance.py
-│   │   ├── news_analyst.py  # 🆕 News sentiment
-│   │   ├── sentiment.py     # 🆕 Market mood index
-│   │   └── prediction.py    # 🆕 ML predictions
-│   ├── market/              # 🌐 Market Data Handling
-│   │   ├── manager.py       # Live/Sim auto-switcher
-│   │   ├── yfinance_feed.py # 🆕 Free market data
-│   │   ├── stock_discovery.py # 🆕 Dynamic discovery
-│   │   ├── websocket_feed.py# DhanHQ WebSocket client
-│   │   └── simulated_data.py# Realistic market simulator
-│   ├── execution/           # ⚡ Order Execution
-│   │   ├── adapter.py       # Execution routing
-│   │   └── paper_engine.py  # 🆕 Local paper trading
-│   ├── backtesting/         # 📈 Strategy Testing
-│   │   ├── engine.py        # 🆕 Backtest runner
-│   │   └── strategies.py    # 🆕 Pre-built strategies
-│   ├── utils/               # 🔧 Utilities
-│   │   ├── rate_limiter.py  # 🆕 API rate limiting
-│   │   └── cache.py         # 🆕 TTL caching
-│   ├── notifications/       # 📱 Alerts
-│   │   └── telegram.py      # 🆕 Mobile notifications
-│   ├── dashboard/           # 📊 UI Components
-│   │   └── cli.py           # Rich terminal dashboard
-│   ├── memory/              # 📚 Learning System
-│   └── config/              # ⚙️ Configuration
-├── scripts/                 # 🏃‍♂️ Entry Points
-│   ├── run_live_trading.py  # Main application
-│   └── check_config.py      # 🆕 Config validator
-├── tests/                   # 🧪 Unit Tests
-└── README.md
+# Terminal C: UI Development Server
+cd frontend && npm run dev
 ```
 
 ---
 
-## 📈 Backtesting
-
-Test strategies before running live:
-
-```python
-from src.backtesting import BacktestEngine, MomentumStrategy
-
-engine = BacktestEngine(initial_capital=100000)
-data = engine.fetch_data("RELIANCE", period="1y")
-result = engine.run(MomentumStrategy(), data, symbol="RELIANCE")
-result.print_summary()
-```
-
-**Available Strategies:**
-
-- `MomentumStrategy` - Buy on upward momentum
-- `MeanReversionStrategy` - Buy oversold, sell overbought
-- `SMACrossoverStrategy` - Moving average crossover
-- `RSIStrategy` - RSI-based entries
-
----
-
-## 📱 Telegram Alerts
-
-Get trade notifications on your phone:
-
-1. Create bot: Talk to `@BotFather` on Telegram
-2. Get chat ID: Talk to `@userinfobot`
-3. Add to `.env`:
-
-```bash
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
-```
-
----
-
-## 🔍 Observability
-
-RakshaQuant is instrumented with **LangSmith** for full observability. You can trace every thought process of the agents:
-
-> _"Why did the agent reject the BUY signal for TCS?"_ > _"What market regime did it detect before entering the trade?"_
-
-All these questions can be answered by inspecting the traces in the LangSmith dashboard.
-
----
-
-## ⚠️ Disclaimer
-
-> **EDUCATIONAL PURPOSES ONLY**
->
-> RakshaQuant is a research project to explore Agentic AI in finance. It is **not** financial advice.
->
-> - The default mode is **PAPER TRADING**.
-> - Do not connect to a live trading account with real funds unless you fully understand the risks.
-> - Algorithmic trading involves significant risk of loss.
+## ⚠️ Risk Disclosure
+> **FOR RESEARCH ONLY.**
+> RakshaQuant is an experimental software suite. Algorithmic trading involves significant capital risk. The default "Paper Trading" mode should be used extensively before considering live capital integration.
 
 ---
 
 <div align="center">
-    <b>Built with ❤️ by a solo developer exploring the BFSI × AI frontier</b>
+    <b>Built for Professional Quant Intelligence.</b>
 </div>
-
-
-

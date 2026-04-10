@@ -16,6 +16,8 @@ from .market_regime import market_regime_node
 from .news_analyst import news_sentiment_node
 from .vision_analyst import vision_analyst_node
 from .volume_analyst import volume_analyst_node
+from .prediction import prediction_node
+from .sentiment import sentiment_analysis_node
 from .strategy_selection import strategy_selection_node
 from .signal_validation import signal_validation_node
 from .risk_compliance import risk_compliance_node, check_kill_switch
@@ -69,7 +71,9 @@ def create_trading_graph(
     1. Market Regime Agent -> classifies market conditions
     2. Strategy Selection Agent -> picks active strategies
     3. Signal Validation Agent -> filters signals
-    4. Risk & Compliance Agent -> final approval
+    4. Prediction Analysis Agent -> forecasts outcomes
+    5. Vision Analysis Agent -> visual validation
+    6. Risk & Compliance Agent -> final approval
     
     Args:
         checkpointer: Optional checkpointer for state persistence
@@ -83,21 +87,25 @@ def create_trading_graph(
     workflow = StateGraph(TradingState)
     
     # Add nodes
-    # Add nodes
     workflow.add_node("news_sentiment", news_sentiment_node)
+    workflow.add_node("market_mood", sentiment_analysis_node)
     workflow.add_node("market_regime", market_regime_node)
     workflow.add_node("volume_analysis", volume_analyst_node)
-    workflow.add_node("vision_analysis", vision_analyst_node)
     workflow.add_node("strategy_selection", strategy_selection_node)
     workflow.add_node("signal_validation", signal_validation_node)
+    workflow.add_node("prediction_analysis", prediction_node)
+    workflow.add_node("vision_analysis", vision_analyst_node)
     workflow.add_node("risk_compliance", risk_compliance_node)
     
     # Add edges
     # Start -> News Sentiment
     workflow.add_edge(START, "news_sentiment")
     
-    # News Sentiment -> Market Regime
-    workflow.add_edge("news_sentiment", "market_regime")
+    # News Sentiment -> Market Mood
+    workflow.add_edge("news_sentiment", "market_mood")
+    
+    # Market Mood -> Market Regime
+    workflow.add_edge("market_mood", "market_regime")
     
     # Market Regime -> (conditional) -> Volume Analysis or End
     workflow.add_conditional_edges(
@@ -115,15 +123,18 @@ def create_trading_graph(
     # Strategy Selection -> Signal Validation
     workflow.add_edge("strategy_selection", "signal_validation")
     
-    # Signal Validation -> (conditional) -> Vision Analysis or End
+    # Signal Validation -> (conditional) -> Prediction Analysis or End
     workflow.add_conditional_edges(
         "signal_validation",
         should_continue_after_validation,
         {
-            "risk_compliance": "vision_analysis",
+            "prediction_analysis": "prediction_analysis",
             "end": END,
         }
     )
+    
+    # Prediction Analysis -> Vision Analysis
+    workflow.add_edge("prediction_analysis", "vision_analysis")
     
     # Vision Analysis -> Risk Compliance
     workflow.add_edge("vision_analysis", "risk_compliance")

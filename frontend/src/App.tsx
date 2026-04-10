@@ -1,4 +1,4 @@
-import { Activity, TrendingUp, Wallet, Target, ArrowUpRight, ArrowDownRight, Minus, LayoutDashboard, History, Brain, ShieldAlert, BarChart3 } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, Wallet, Target, ArrowUpRight, ArrowDownRight, Minus, LayoutDashboard, History, Brain, ShieldAlert, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { Header } from './components/Header';
@@ -49,7 +49,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <MarketTicker />
+      <MarketTicker summary={data} />
       
       <div className="max-w-7xl w-full mx-auto p-4 md:p-8 flex flex-col gap-8 flex-1">
         <Header isHalted={!!data.is_halted} onToggleHalt={toggleHalt} />
@@ -191,6 +191,59 @@ function App() {
                       )}
                     </div>
                   </div>
+
+                  {/* Machine Learning Forecast Card */}
+                  {summary?.latest_predictions && summary.latest_predictions.length > 0 && (
+                    <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-xl p-6 mb-8 hover:border-purple-500/30 transition-all group">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-purple-500/20 p-2 rounded-lg">
+                            <Brain className="w-5 h-5 text-purple-400" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-white">Machine Learning Forecast</h2>
+                            <p className="text-slate-400 text-sm">Ensemble ML Directional Prediction</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/80 px-3 py-1 rounded-full text-xs font-mono text-slate-300">
+                          Ensemble: RF + GBT + LR
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {summary.latest_predictions.map((pred: any, idx: number) => (
+                          <div key={idx} className="bg-slate-800/40 rounded-lg p-5 border border-slate-700/50 hover:bg-slate-800/60 transition-colors">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-lg font-bold text-white">{pred.symbol}</span>
+                              <div className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                                pred.direction === 'up' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                              }`}>
+                                {pred.direction === 'up' ? <TrendingUp className="w-3 h-3 inline mr-1" /> : <TrendingDown className="w-3 h-3 inline mr-1" />}
+                                {pred.direction}
+                              </div>
+                            </div>
+                            
+                            <div className="mb-4">
+                              <div className="flex justify-between text-xs text-slate-400 mb-1">
+                                <span>Confidence</span>
+                                <span>{Math.round(pred.confidence * 100)}%</span>
+                              </div>
+                              <div className="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full ${pred.direction === 'up' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                                  style={{ width: `${pred.confidence * 100}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <p className="text-xs text-slate-300 leading-relaxed italic">
+                              "{pred.reasoning}"
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="bg-zinc-900/50 rounded-xl p-5 border border-zinc-800">
                     <h4 className="flex items-center gap-2 text-white font-semibold mb-4">

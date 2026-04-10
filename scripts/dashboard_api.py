@@ -71,6 +71,8 @@ def _get_summary_data():
             "active_strategies": (memory_db.get_state("active_strategies") or "None").split(","),
             "latest_vision": json.loads(memory_db.get_state("latest_vision") or "{}"),
             "latest_volume": json.loads(memory_db.get_state("latest_volume") or "{}"),
+            "latest_predictions": json.loads(memory_db.get_state("latest_predictions") or "[]"),
+            "market_mood": json.loads(memory_db.get_state("market_mood") or "{}"),
             "latest_news": json.loads(memory_db.get_state("latest_news") or "{}")
         }
     except Exception as e:
