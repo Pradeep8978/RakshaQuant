@@ -1,0 +1,32 @@
+services:
+  # -------------------------------------
+  # 1. FastAPI Backend
+  # -------------------------------------
+  - type: web
+    name: rakshaquant-api
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: "pip install uv && uv sync"
+    startCommand: "uv run uvicorn scripts.dashboard_api:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DATABASE_URL
+        sync: false # You will paste your Neon DB URL in the Render dashboard
+
+  # -------------------------------------
+  # 2. React Frontend
+  # -------------------------------------
+  - type: web
+    name: rakshaquant-dashboard
+    env: static
+    region: singapore
+    plan: free
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: "./frontend/dist"
+    envVars:
+      - key: VITE_API_URL
+        # This dynamically grabs the backend's URL and forms the correct API base URL
+        # e.g., https://rakshaquant-api.onrender.com/api/dashboard
+        value: https://${rakshaquant-api.host}/api/dashboard
