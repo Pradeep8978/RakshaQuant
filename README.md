@@ -1,147 +1,116 @@
 <div align="center">
 
-# 🛡️ RakshaQuant v4.0 (Enterprise)
-### Autonomous Agentic Intelligence for High-Probability Trading
-_Orchestrating 9 Specialized Agents through LangGraph, Multimodal Vision, and Ensemble ML_
+# 🛡️ RakshaQuant v4.5 (High-Frequency Agentic Cluster)
+### Parallel Multi-Agent Intelligence for Institutional-Grade Trading
+_Orchestrating 9 Specialized Agents through LangGraph Parallel Clusters, Multimodal Vision, and Ensemble ML_
 
-[![Platform: Web](https://img.shields.io/badge/Platform-Web Dashboard-blue.svg)](https://react.dev)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Orchestrated-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![Vision AI](https://img.shields.io/badge/Vision%20AI-Llama 3.2-purple.svg)](https://groq.com)
-[![ML Ensemble](https://img.shields.io/badge/ML%20Ensemble-RF%20+%20GBT-yellow.svg)](https://scikit-learn.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green.svg)](https://fastapi.tiangolo.com)
+[![Parallel Graph](https://img.shields.io/badge/Graph-Parallel%20Fan--out-brightgreen.svg)](https://github.com/langchain-ai/langgraph)
+[![Vision AI](https://img.shields.io/badge/Vision%20AI-Llama%203.2-purple.svg)](https://groq.com)
+[![ML Ensemble](https://img.shields.io/badge/ML%20Ensemble-Ensemble%20v2-yellow.svg)](https://scikit-learn.org)
+[![Execution](https://img.shields.io/badge/Execution-Headless%20+%20Dashboard-blue.svg)](https://react.dev)
 
 </div>
 
 ---
 
-## 🎯 Project Thesis
-**RakshaQuant** (रक्षा = Protection) is an autonomous agentic trading ecosystem designed to solve the "Black Box" problem in algorithmic trading. Most bots fail because they rely on single-dimensionality (e.g., just indicators). 
-
-RakshaQuant utilizes a **9-Agent "War Room"** architecture. By the time a trade is executed, it has been scrutinized by a News analyst, visual patterns have been "seen" by a Vision model, statistical probability has been verified by an ML Ensemble, and institutional liquidity has been mapped.
+## 🎯 The Thesis: Why Parallel?
+Standard trading bots fail because of **Latency** and **Single-Perspective Bias**. RakshaQuant v4.5 solves this by splitting the 9-Agent "War Room" into three concurrent intelligence clusters. By running analysis in parallel, we reduce decision time by **70%** while ensuring 100% data confluence.
 
 ---
 
-## 🏗️ Detailed Architecture
+## 🏗️ Technical Architecture (Cluster-Based Flow)
 
-### 🧠 Parallel Orchestration Layer (LangGraph)
-RakshaQuant utilizes an advanced **Fan-out/Fan-in** architecture. Unlike linear bots, our agents work in parallel "War Rooms" to reach a decision in 70% less time.
+Our LangGraph workflow uses a **Fan-out/Fan-in** model to ensure high-speed processing without sacrificing depth.
 
 ```mermaid
 graph TD
-    START((START)) --> NEWS[Agent 1: News Catalyst]
-    START --> MOOD[Agent 2: Market Mood Index]
-    START --> VOLUME[Agent 4: Institutional Footprint]
+    START((START)) --> CLUSTER_1{Context Cluster}
+    
+    subgraph "Context Gathering (Parallel)"
+    CLUSTER_1 --> NEWS[Agent 1: News Catalyst]
+    CLUSTER_1 --> MOOD[Agent 2: Market Mood]
+    CLUSTER_1 --> VOLUME[Agent 4: Volume Footprint]
+    end
     
     NEWS --> REGIME[Agent 3: Regime Classifier]
     MOOD --> REGIME
     VOLUME --> REGIME
     
-    REGIME -- "Success" --> STRATEGY[Agent 5: Strategy Selection]
+    REGIME --> STRATEGY[Agent 5: Strategy Selection]
     STRATEGY --> VALIDATOR[Agent 6: Signal Validation]
     
-    VALIDATOR -- "Confluence Branch" --> PREDICT[Agent 7: ML Ensemble]
-    VALIDATOR -- "Confluence Branch" --> VISION[Agent 8: Llama 3.2 Vision]
+    VALIDATOR --> CLUSTER_2{Analysis Cluster}
     
-    PREDICT --> RISK[Agent 9: Risk & Compliance]
+    subgraph "Deep Analysis (Parallel)"
+    CLUSTER_2 --> PREDICT[Agent 7: ML Predictor]
+    CLUSTER_2 --> VISION[Agent 8: Llama Vision]
+    end
+    
+    PREDICT --> RISK[Agent 9: Risk Compliance]
     VISION --> RISK
     
-    RISK -- "Approved" --> EXECUTE[Execution Engine]
+    RISK -- "Consensus Approved" --> EXECUTE[Execution Engine]
     RISK -- "Veto" --> REJECT[End Cycle]
 ```
 
 ---
 
-## 🛠️ The 9-Agent "War Room" (Parallel Processing)
-Our agents are divided into three parallel clusters:
+## 🛠️ The 9-Agent Intelligence Matrix
 
-1.  **Context Cluster (News + Mood + Volume)**: Simultaneously gathers macro and micro sentiment.
-2.  **Analysis Cluster (Ensemble ML + Vision)**: Statistical and visual verification runs concurrently.
-3.  **Governance Cluster (Risk)**: Consolidates all inputs into a final deterministic decision.
-
-| # | Agent | Logic | Purpose |
+| Cluster | Agent | Technology | Role |
 | :--- | :--- | :--- | :--- |
-| 1 | **News Analyst** | RSS + Llama-3 Sentiment | Identifies market-moving catalysts (Earnings, Macro). |
-| 2 | **Market Mood** | Collective Sentiment Scores | Calculates a global **Fear & Greed Index** (0-100). |
-| 3 | **Regime Classifier** | ADX + ATR + LLM Reasoning | Defines if the market is Bullish, Bearish, or Ranging. |
-| 4 | **Volume Footprint** | TPO / Volume Profiling | Maps institutional Point of Control (PoC) and Value Areas. |
-| 5 | **Strategy Selector** | Multi-Algo Routing | Pivots logic (Trend Following vs. Mean Reversion). |
-| 6 | **Signal Validator** | Quantitative Math | Cross-checks EMA/RSI clusters for confluence. |
-| 7 | **ML Predictor** | Ensemble (RF + GBT + LR) | Statistical price forecasting with confidence scores. |
-| 8 | **Vision Analyst** | Llama 3.2 Vision | "Sees" geometric chart patterns (Flags, Wedges). |
-| 9 | **Risk Compliance** | Deterministic Hard Gates | The final veto based on drawdown and drawdown limits. |
+| **Context** | News Analyst | Google News RSS + Llama-3 | Monitors market-moving headlines in real-time. |
+| **Context** | Market Mood | Sentiment Scoring Engine | Calculates global **Fear & Greed Index** for ticker visibility. |
+| **Context** | Volume Footprint | TPO / POC Analysis | Identifies institutional accumulation nodes. |
+| **Logic** | Regime Classifier | ADX/ATR Engine | Hard-gates trading unless market exhibits high-probability setups. |
+| **Logic** | Strategy Selector | Multi-Algo Router | Dynamically switches between Trend and Mean Reversion. |
+| **Logic** | Signal Validator | Quantitative Math | Filters technical entries for "Alpha" confluence. |
+| **Analytics** | ML Predictor | Ensemble (RF/GBT/LR) | Statistical forecasting with 75%+ confidence requirement. |
+| **Analytics** | Vision Analyst | Llama 3.2 Vision | Geometric pattern recognition via multimodal snapshots. |
+| **Governance**| Risk & Compliance | Deterministic Gates | Standardized drawdown limits and trade-size optimization. |
 
 ---
 
 ## 🏢 Enterprise Dashboard Features
 
-### 📈 Machine Learning Analytics
-A dedicated ML dashboard section showing directional forecasts from our **Ensemble Classifier**. It breaks down the confidence level and reasoning from the RandomForest and Gradient Boosting models, ensuring no trade is taken against statistical odds.
+### 🌊 Dynamic Live Ticker
+The dashboard now features a global **Market Mood Indicator**. This is powered by Agent 2, providing a real-time sentiment score (0-100) that moves based on the latest catalogs of news and macro data.
 
-### 👁️ Multimodal Visual Trace
-The system generates SVG charts of current price action, encodes them, and sends them to **Llama 3.2 Vision**. The agent's visual reasoning logs are displayed in the "AI Analysis" tab, allowing you to see *why* it thinks a pattern looks bullish/bearish.
+### 📈 Multimodal AI Tracing
+See what the AI sees. Every trade signal includes a **Visual Trace**—a chart snapshot analyzed by Llama 3.2 11B Vision—with written reasoning displayed directly in the dashboard's "AI Analysis" panel.
 
-### 🌊 Institutional Liquidity Tracker
-Uses high-precision volume distribution to find "High Volume Nodes." Trading occurs only when price is interacting with institutional value areas.
-
-### 📉 Global Kill-Switch
-A centralized emergency mechanism that instantly shuts down all agents, closes all open positions, and prevents further execution if system-wide anomalies or drawdown limits are hit.
+### ⚙️ Parallel "Headless" Engine
+Full support for a headless execution mode (`scripts/run_headless.py`) designed for GitHub Actions and cloud servers, enabling 24/7 autonomous monitoring without a GUI requirement.
 
 ---
 
 ## 🏗️ Technical Stack
 
-- **Core Engine**: Python 3.12+ managed via `uv`
-- **Orchestration**: LangGraph (LangChain ecosystem)
-- **Primary LLMs**: Groq (Llama 3.1 70B & Llama 3.2 11B Vision)
-- **ML Layer**: Scikit-Learn (Ensemble Regressors/Classifiers)
-- **Data Pipeline**: Yahoo Finance & Interactive Brokers (via MarketDataManager)
-- **Backend API**: FastAPI (High-performance async server)
-- **Frontend**: React 18, Tailwind CSS, Lucide Icons, Glassmorphism design
-- **State Persistence**:Local SQLite (AgentMemoryDB)
+- **Orchestration**: LangGraph (Advanced Parallel DAG)
+- **Primary LLM**: Groq Llama 3.1 70B
+- **Vision LLM**: Groq Llama 3.2 11B Vision
+- **Machine Learning**: Scikit-Learn Ensemble v2.0
+- **Data Pipeline**: Yahoo Finance & Google RSS
+- **Dashboard**: React 18 + Tailwind CSS + Lucide
+- **Backend**: Async FastAPI + SQLAlchemy
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Execution Commands
 
-### 1. Requirements
-- Groq API Key (Register at [console.groq.com](https://console.groq.com))
-- Python 3.12+
-- Node.js 18+
-
-### 2. Deployment
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/RakshaQuant.git
-cd RakshaQuant
-
-# Initialize Backend
-uv sync
-cp .env.example .env # Add your GROQ_API_KEY
-
-# Initialize Dashboard
-cd frontend && npm install
-```
-
-### 3. Execution
-```bash
-# Terminal A: Trading Core
+# 1. Trading Core (Parallel Cluster Mode)
 uv run python scripts/run_live_trading.py
 
-# Terminal B: Web API
+# 2. Headless Mode (CLI/Cloud)
+uv run python scripts/run_headless.py
+
+# 3. Web Dashboard API
 uv run python scripts/dashboard_api.py
-
-# Terminal C: UI Development Server
-cd frontend && npm run dev
 ```
-
----
-
-## ⚠️ Risk Disclosure
-> **FOR RESEARCH ONLY.**
-> RakshaQuant is an experimental software suite. Algorithmic trading involves significant capital risk. The default "Paper Trading" mode should be used extensively before considering live capital integration.
 
 ---
 
 <div align="center">
-    <b>Built for Professional Quant Intelligence.</b>
+    <b>Built for Professional High-Frequency Intelligence.</b>
 </div>

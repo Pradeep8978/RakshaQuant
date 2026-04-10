@@ -125,14 +125,24 @@ def create_trading_graph(
     workflow.add_edge("strategy_selection", "signal_validation")
     
     # ---------------------------------------------------------
-    # PARALLEL STEP 2: Signal Intelligence (Fan-out from Validation)
+    # PARALLEL STEP 2: Signal Intelligence (Fan-out)
     # ---------------------------------------------------------
-    # We use a conditional edge to decide if we even need signal analysis
+    # First, a conditional check: Do we have signals to analyze?
     workflow.add_conditional_edges(
         "signal_validation",
         should_continue_after_validation,
         {
-            "risk_compliance": ["prediction_analysis", "vision_analysis"],
+            "risk_compliance": "prediction_analysis", # Entry point 1
+            "end": END,
+        }
+    )
+    
+    # Entry point 2 for the same branch to enable parallel fan-out
+    workflow.add_conditional_edges(
+        "signal_validation",
+        should_continue_after_validation,
+        {
+            "risk_compliance": "vision_analysis", 
             "end": END,
         }
     )
