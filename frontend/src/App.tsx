@@ -11,8 +11,8 @@ function App() {
 
   if (loading && !summary) {
     return (
-      <div className="loading-container">
-        <div className="spinner"></div>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 text-secondary">
+        <div className="w-10 h-10 border-4 border-white/10 border-t-accent rounded-full animate-spin"></div>
         <p>Connecting to RakshaQuant Core...</p>
       </div>
     );
@@ -37,11 +37,11 @@ function App() {
   ];
 
   return (
-    <div className="dashboard-container">
+    <div className="max-w-7xl mx-auto p-4 md:p-8 flex flex-col gap-8">
       <Header isHalted={!!data.is_halted} onToggleHalt={toggleHalt} />
 
       {/* Stats Overview */}
-      <div className="overview-grid">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
         <StatCard 
           icon={<Wallet size={16} />} 
           label="Total Balance" 
@@ -76,10 +76,12 @@ function App() {
       </div>
 
       {/* Main Content */}
-      <div className="content-grid">
-        <PerformanceChart data={displayChartData} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <PerformanceChart data={displayChartData} />
+        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div className="flex flex-col gap-6">
           <RecentTrades trades={trades} />
           <AgentMemory lessons={lessons} />
         </div>
