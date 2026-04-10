@@ -40,6 +40,8 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "rich>=13.0.0",  # CLI dashboard
+    "plotly>=5.18.0", # Chart generation for Vision
+    "kaleido==0.2.1", # Static image export for Plotly
     # Optional: Redis for caching
     "redis>=5.0.0",
     "fastapi>=0.135.3",
