@@ -65,10 +65,6 @@ Thumbs.db
 # Project specific
 data/
 *.csv
-*.json
-!frontend/**/*.json
-!frontend/*.json
-!.env.example
 
 #context Docs
 AgentContext/
