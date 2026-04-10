@@ -89,54 +89,58 @@ def create_trading_graph(
     # Add nodes
     workflow.add_node("news_sentiment", news_sentiment_node)
     workflow.add_node("market_mood", sentiment_analysis_node)
-    workflow.add_node("market_regime", market_regime_node)
     workflow.add_node("volume_analysis", volume_analyst_node)
+    workflow.add_node("market_regime", market_regime_node)
     workflow.add_node("strategy_selection", strategy_selection_node)
     workflow.add_node("signal_validation", signal_validation_node)
     workflow.add_node("prediction_analysis", prediction_node)
     workflow.add_node("vision_analysis", vision_analyst_node)
     workflow.add_node("risk_compliance", risk_compliance_node)
     
-    # Add edges
-    # Start -> News Sentiment
+    # ---------------------------------------------------------
+    # PARALLEL STEP 1: Context Gathering (Fan-out from START)
+    # ---------------------------------------------------------
     workflow.add_edge(START, "news_sentiment")
+    workflow.add_edge(START, "market_mood")
+    workflow.add_edge(START, "volume_analysis")
     
-    # News Sentiment -> Market Mood
-    workflow.add_edge("news_sentiment", "market_mood")
-    
-    # Market Mood -> Market Regime
+    # ---------------------------------------------------------
+    # JOIN STEP 1: Process Context into Regime (Fan-in to Regime)
+    # ---------------------------------------------------------
+    workflow.add_edge("news_sentiment", "market_regime")
     workflow.add_edge("market_mood", "market_regime")
+    workflow.add_edge("volume_analysis", "market_regime")
     
-    # Market Regime -> (conditional) -> Volume Analysis or End
+    # Market Regime -> (conditional) -> Strategy Selection or End
     workflow.add_conditional_edges(
         "market_regime",
         should_continue_after_regime,
         {
-            "strategy_selection": "volume_analysis",
+            "strategy_selection": "strategy_selection",
             "end": END,
         }
     )
-    
-    # Volume Analysis -> Strategy Selection
-    workflow.add_edge("volume_analysis", "strategy_selection")
     
     # Strategy Selection -> Signal Validation
     workflow.add_edge("strategy_selection", "signal_validation")
     
-    # Signal Validation -> (conditional) -> Prediction Analysis or End
+    # ---------------------------------------------------------
+    # PARALLEL STEP 2: Signal Intelligence (Fan-out from Validation)
+    # ---------------------------------------------------------
+    # We use a conditional edge to decide if we even need signal analysis
     workflow.add_conditional_edges(
         "signal_validation",
         should_continue_after_validation,
         {
-            "prediction_analysis": "prediction_analysis",
+            "risk_compliance": ["prediction_analysis", "vision_analysis"],
             "end": END,
         }
     )
     
-    # Prediction Analysis -> Vision Analysis
-    workflow.add_edge("prediction_analysis", "vision_analysis")
-    
-    # Vision Analysis -> Risk Compliance
+    # ---------------------------------------------------------
+    # JOIN STEP 2: Consolidated Risk Gate (Fan-in to Risk)
+    # ---------------------------------------------------------
+    workflow.add_edge("prediction_analysis", "risk_compliance")
     workflow.add_edge("vision_analysis", "risk_compliance")
     
     # Risk Compliance -> Final Decision

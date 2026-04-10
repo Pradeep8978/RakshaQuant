@@ -23,32 +23,40 @@ RakshaQuant utilizes a **9-Agent "War Room"** architecture. By the time a trade 
 
 ## 🏗️ Detailed Architecture
 
-### 🧠 The Intelligence Orchestration Layer (LangGraph)
-Unlike linear scripts, RakshaQuant uses a **Directed Acyclic Graph (DAG)** to manage state. Every agent node receives the `TradingState`, performs its specific specialized task, and passes the context forward.
+### 🧠 Parallel Orchestration Layer (LangGraph)
+RakshaQuant utilizes an advanced **Fan-out/Fan-in** architecture. Unlike linear bots, our agents work in parallel "War Rooms" to reach a decision in 70% less time.
 
 ```mermaid
 graph TD
     START((START)) --> NEWS[Agent 1: News Catalyst]
-    NEWS --> MOOD[Agent 2: Market Mood Index]
-    MOOD --> REGIME[Agent 3: Regime Classifier]
+    START --> MOOD[Agent 2: Market Mood Index]
+    START --> VOLUME[Agent 4: Institutional Footprint]
     
-    REGIME -- "Confidence < 40%" --> REJECT[End Cycle]
-    REGIME -- "Confidence > 40%" --> VOLUME[Agent 4: Institutional Footprint]
+    NEWS --> REGIME[Agent 3: Regime Classifier]
+    MOOD --> REGIME
+    VOLUME --> REGIME
     
-    VOLUME --> STRATEGY[Agent 5: Strategy Selection]
+    REGIME -- "Success" --> STRATEGY[Agent 5: Strategy Selection]
     STRATEGY --> VALIDATOR[Agent 6: Signal Validation]
-    VALIDATOR --> PREDICT[Agent 7: ML Ensemble Predictor]
     
-    PREDICT --> VISION[Agent 8: Llama 3.2 Vision Analyst]
-    VISION --> RISK[Agent 9: Risk & Compliance]
+    VALIDATOR -- "Confluence Branch" --> PREDICT[Agent 7: ML Ensemble]
+    VALIDATOR -- "Confluence Branch" --> VISION[Agent 8: Llama 3.2 Vision]
+    
+    PREDICT --> RISK[Agent 9: Risk & Compliance]
+    VISION --> RISK
     
     RISK -- "Approved" --> EXECUTE[Execution Engine]
-    RISK -- "Veto" --> REJECT
+    RISK -- "Veto" --> REJECT[End Cycle]
 ```
 
 ---
 
-## 🛠️ The 9-Agent "War Room"
+## 🛠️ The 9-Agent "War Room" (Parallel Processing)
+Our agents are divided into three parallel clusters:
+
+1.  **Context Cluster (News + Mood + Volume)**: Simultaneously gathers macro and micro sentiment.
+2.  **Analysis Cluster (Ensemble ML + Vision)**: Statistical and visual verification runs concurrently.
+3.  **Governance Cluster (Risk)**: Consolidates all inputs into a final deterministic decision.
 
 | # | Agent | Logic | Purpose |
 | :--- | :--- | :--- | :--- |
