@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import json
 from typing import Any
 import sys
 from pathlib import Path
@@ -67,7 +68,10 @@ def _get_summary_data():
             "is_halted": memory_db.get_state("trading_halted") == "true",
             "latest_regime": memory_db.get_state("latest_regime") or "Indeterminate",
             "regime_confidence": float(memory_db.get_state("regime_confidence") or 0),
-            "active_strategies": (memory_db.get_state("active_strategies") or "None").split(",")
+            "active_strategies": (memory_db.get_state("active_strategies") or "None").split(","),
+            "latest_vision": json.loads(memory_db.get_state("latest_vision") or "{}"),
+            "latest_volume": json.loads(memory_db.get_state("latest_volume") or "{}"),
+            "latest_news": json.loads(memory_db.get_state("latest_news") or "{}")
         }
     except Exception as e:
         return {"error": str(e)}

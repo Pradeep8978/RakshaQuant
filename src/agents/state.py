@@ -161,6 +161,12 @@ class TradingState(TypedDict):
     # News sentiment from NewsAnalyst
     news_sentiment: dict[str, Any]
     
+    # Vision analysis from VisionAnalyst
+    vision_analysis: dict[str, Any]
+    
+    # Volume analysis from VolumeAnalyst
+    volume_analysis: dict[str, Any]
+    
     # Market Mood Index from SentimentAgent
     market_mood: dict[str, Any]
     
@@ -229,6 +235,8 @@ def create_initial_state(
         
         # Sentiment & Prediction (Free Tier)
         news_sentiment={},
+        vision_analysis={},
+        volume_analysis={},
         market_mood={},
         prediction_signals=[],
     )

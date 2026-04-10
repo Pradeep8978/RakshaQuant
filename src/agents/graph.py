@@ -13,6 +13,9 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from .state import TradingState, create_initial_state
 from .market_regime import market_regime_node
+from .news_analyst import news_sentiment_node
+from .vision_analyst import vision_analyst_node
+from .volume_analyst import volume_analyst_node
 from .strategy_selection import strategy_selection_node
 from .signal_validation import signal_validation_node
 from .risk_compliance import risk_compliance_node, check_kill_switch
@@ -80,39 +83,52 @@ def create_trading_graph(
     workflow = StateGraph(TradingState)
     
     # Add nodes
+    # Add nodes
+    workflow.add_node("news_sentiment", news_sentiment_node)
     workflow.add_node("market_regime", market_regime_node)
+    workflow.add_node("volume_analysis", volume_analyst_node)
+    workflow.add_node("vision_analysis", vision_analyst_node)
     workflow.add_node("strategy_selection", strategy_selection_node)
     workflow.add_node("signal_validation", signal_validation_node)
     workflow.add_node("risk_compliance", risk_compliance_node)
     
     # Add edges
-    # Start -> Market Regime
-    workflow.add_edge(START, "market_regime")
+    # Start -> News Sentiment
+    workflow.add_edge(START, "news_sentiment")
     
-    # Market Regime -> (conditional) -> Strategy Selection or End
+    # News Sentiment -> Market Regime
+    workflow.add_edge("news_sentiment", "market_regime")
+    
+    # Market Regime -> (conditional) -> Volume Analysis or End
     workflow.add_conditional_edges(
         "market_regime",
         should_continue_after_regime,
         {
-            "strategy_selection": "strategy_selection",
+            "strategy_selection": "volume_analysis",
             "end": END,
         }
     )
+    
+    # Volume Analysis -> Strategy Selection
+    workflow.add_edge("volume_analysis", "strategy_selection")
     
     # Strategy Selection -> Signal Validation
     workflow.add_edge("strategy_selection", "signal_validation")
     
-    # Signal Validation -> (conditional) -> Risk or End
+    # Signal Validation -> (conditional) -> Vision Analysis or End
     workflow.add_conditional_edges(
         "signal_validation",
         should_continue_after_validation,
         {
-            "risk_compliance": "risk_compliance",
+            "risk_compliance": "vision_analysis",
             "end": END,
         }
     )
     
-    # Risk Compliance -> End
+    # Vision Analysis -> Risk Compliance
+    workflow.add_edge("vision_analysis", "risk_compliance")
+    
+    # Risk Compliance -> Final Decision
     workflow.add_edge("risk_compliance", END)
     
     # Compile with optional checkpointer

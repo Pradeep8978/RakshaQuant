@@ -24,6 +24,7 @@ import feedparser
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 
+from src.agents.state import TradingState
 from src.config import get_settings
 from src.utils.cache import get_news_cache, get_sentiment_cache
 from src.utils.rate_limiter import get_groq_limiter
@@ -313,6 +314,35 @@ class NewsAnalyst:
         """Get sentiment for a specific stock."""
         query = f"{symbol} stock NSE India"
         return await self.get_sentiment(query)
+
+
+async def news_sentiment_node(state: TradingState) -> dict[str, Any]:
+    """
+    LangGraph node for news analysis.
+    
+    Checks sentiment for symbols in the current state's signals.
+    """
+    logger.info("Running News Sentiment Agent")
+    analyst = NewsAnalyst()
+    
+    # Analyze broad market first
+    market_sentiment = await analyst.get_market_sentiment()
+    
+    # Analyze specific symbols if any
+    signals = state.get("signals", [])
+    symbols = list(set([s.get("symbol") for s in signals if s.get("symbol")]))
+    
+    symbol_sentiments = {}
+    for symbol in symbols:
+        sentiment = await analyst.get_stock_sentiment(symbol)
+        symbol_sentiments[symbol] = sentiment.to_dict()
+    
+    return {
+        "news_sentiment": {
+            "market": market_sentiment.to_dict(),
+            "symbols": symbol_sentiments
+        }
+    }
 
 
 async def test_news_analyst():

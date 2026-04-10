@@ -11,6 +11,27 @@ export interface SummaryData {
   regime_confidence: number;
   active_strategies: string[];
   is_halted?: boolean;
+  latest_vision?: Record<string, {
+    symbol: string;
+    pattern: string;
+    confidence: number;
+    reasoning: string;
+  }>;
+  latest_volume?: Record<string, {
+    symbol: string;
+    poc: number;
+    vah: number;
+    val: number;
+    institutional_activity: string;
+    activity_intensity: number;
+    divergence: string;
+    summary: string;
+  }>;
+  latest_news?: {
+    avg_sentiment: number;
+    sentiment_label: string;
+    headlines: string[];
+  };
 }
 
 export interface Trade {
