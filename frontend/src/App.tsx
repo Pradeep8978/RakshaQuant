@@ -1,4 +1,3 @@
-import React from 'react';
 import { Activity, TrendingUp, Wallet, Target, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { Header } from './components/Header';
@@ -7,18 +6,8 @@ import { PerformanceChart } from './components/PerformanceChart';
 import { RecentTrades } from './components/RecentTrades';
 import { AgentMemory } from './components/AgentMemory';
 
-// Mock chart data for visual effect since we don't have historical balance API yet
-const fallbackChartData = [
-  { time: '10:00', balance: 1000000 },
-  { time: '11:00', balance: 1000500 },
-  { time: '12:00', balance: 999800 },
-  { time: '13:00', balance: 1001200 },
-  { time: '14:00', balance: 1002500 },
-  { time: '15:00', balance: 1004000 },
-];
-
 function App() {
-  const { summary, trades, lessons, loading } = useDashboardData();
+  const { summary, trades, lessons, chartData, loading, toggleHalt } = useDashboardData();
 
   if (loading && !summary) {
     return (
@@ -35,14 +24,21 @@ function App() {
     total_trades: 0,
     win_rate: 0,
     total_pnl: 0,
-    open_positions: 0
+    open_positions: 0,
+    is_halted: false
   };
 
   const isProfitable = data.total_pnl >= 0;
+  
+  // Default fallback if no trades have closed yet
+  const displayChartData = chartData.length > 0 ? chartData : [
+    { time: 'Start', balance: 1000000 }, 
+    { time: 'Now', balance: 1000000 }
+  ];
 
   return (
     <div className="dashboard-container">
-      <Header />
+      <Header isHalted={!!data.is_halted} onToggleHalt={toggleHalt} />
 
       {/* Stats Overview */}
       <div className="overview-grid">
@@ -81,7 +77,7 @@ function App() {
 
       {/* Main Content */}
       <div className="content-grid">
-        <PerformanceChart data={fallbackChartData} />
+        <PerformanceChart data={displayChartData} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <RecentTrades trades={trades} />

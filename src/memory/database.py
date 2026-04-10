@@ -65,6 +65,15 @@ class LessonRecord(Base):
     )
 
 
+class SystemState(Base):
+    """SQLAlchemy model for remote system state settings (e.g. kill switch)."""
+    
+    __tablename__ = "system_state"
+    
+    key = Column(String(50), primary_key=True)
+    value = Column(String(255))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
 @dataclass
 class AgentMemoryDB:
     """
@@ -422,3 +431,30 @@ class AgentMemoryDB:
             "created_at": record.created_at.isoformat() if record.created_at else None,
             "last_used_at": record.last_used_at.isoformat() if record.last_used_at else None,
         }
+
+    def get_state(self, key: str, default: str | None = None) -> str | None:
+        """Get a system state variable from the database."""
+        try:
+            record = self._session.query(SystemState).filter_by(key=key).first()
+            if record:
+                return record.value
+            return default
+        except Exception as e:
+            logger.error(f"Failed to get system state {key}: {e}")
+            return default
+
+    def set_state(self, key: str, value: str) -> bool:
+        """Set a system state variable."""
+        try:
+            record = self._session.query(SystemState).filter_by(key=key).first()
+            if record:
+                record.value = value
+            else:
+                record = SystemState(key=key, value=value)
+                self._session.add(record)
+            self._session.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to set system state {key}: {e}")
+            self._session.rollback()
+            return False

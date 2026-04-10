@@ -146,6 +146,12 @@ async def run_headless():
         while True:
             now_ist = datetime.now(IST)
 
+            # Check Kill Switch
+            if memory_db.get_state('trading_halted') == 'true':
+                logger.warning("Trading is HALTED by user (Kill Switch active). Waiting...")
+                await asyncio.sleep(60)
+                continue
+
             # Auto-stop after market close
             if now_ist.time() > MARKET_CLOSE:
                 logger.info(f"Market closed at {MARKET_CLOSE} IST. Shutting down.")

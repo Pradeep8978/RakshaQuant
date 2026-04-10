@@ -4,6 +4,7 @@ export interface SummaryData {
   win_rate: number;
   total_pnl: number;
   open_positions: number;
+  is_halted?: boolean;
 }
 
 export interface Trade {
