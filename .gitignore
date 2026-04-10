@@ -66,6 +66,8 @@ Thumbs.db
 data/
 *.csv
 *.json
+!frontend/**/*.json
+!frontend/*.json
 !.env.example
 
 #context Docs
