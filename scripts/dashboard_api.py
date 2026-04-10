@@ -53,15 +53,17 @@ app.add_middleware(
 def _get_summary_data():
     try:
         perf = journal.get_performance_summary()
-        balance = paper_engine.balance
-        positions = paper_engine.positions
+        stats = paper_engine.get_stats()
         
         return {
-            "balance": balance,
-            "total_trades": perf.get("total_trades", 0),
-            "win_rate": perf.get("win_rate", 0),
-            "total_pnl": perf.get("total_pnl", 0),
-            "open_positions": len(positions),
+            "balance": stats.get("balance", 1000000),
+            "total_trades": stats.get("total_trades", 0),
+            "win_rate": stats.get("win_rate", 0),
+            "total_pnl": stats.get("total_pnl", 0),
+            "open_positions": stats.get("open_positions", 0),
+            "realized_pnl": stats.get("realized_pnl", 0),
+            "unrealized_pnl": stats.get("unrealized_pnl", 0),
+            "return_pct": stats.get("return_pct", 0),
             "is_halted": memory_db.get_state("trading_halted") == "true"
         }
     except Exception as e:
@@ -70,6 +72,15 @@ def _get_summary_data():
 @app.get("/api/dashboard/summary")
 async def get_summary():
     return _get_summary_data()
+
+@app.get("/api/dashboard/positions")
+async def get_positions():
+    try:
+        positions = paper_engine.get_positions()
+        return [p.to_dict() for p in positions]
+    except Exception as e:
+        logger.error(f"Error serving positions: {e}")
+        return []
 
 @app.get("/api/dashboard/trades")
 async def get_recent_trades(limit: int = 20):

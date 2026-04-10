@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { SummaryData, Trade, Lesson, ChartDataPoint } from '../types';
+import { SummaryData, Trade, Lesson, ChartDataPoint, Position } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/dashboard';
 // Convert http:// to ws:// and https:// to wss://
@@ -9,21 +9,24 @@ const WS_BASE = API_BASE.replace(/^http/, 'ws').replace('/api/dashboard', '/api/
 export function useDashboardData() {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchInitialData = async () => {
     try {
-      const [summaryRes, tradesRes, lessonsRes, chartRes] = await Promise.all([
+      const [summaryRes, tradesRes, posRes, lessonsRes, chartRes] = await Promise.all([
         axios.get(`${API_BASE}/summary`).catch(() => ({ data: null })),
         axios.get(`${API_BASE}/trades`).catch(() => ({ data: [] })),
+        axios.get(`${API_BASE}/positions`).catch(() => ({ data: [] })),
         axios.get(`${API_BASE}/lessons`).catch(() => ({ data: [] })),
         axios.get(`${API_BASE}/chart`).catch(() => ({ data: [] }))
       ]);
 
       if (summaryRes.data && !summaryRes.data.error) setSummary(summaryRes.data);
       if (tradesRes.data) setTrades(tradesRes.data);
+      if (posRes.data) setPositions(posRes.data);
       if (lessonsRes.data) setLessons(lessonsRes.data);
       if (chartRes.data && chartRes.data.length > 0) setChartData(chartRes.data);
       
@@ -87,5 +90,5 @@ export function useDashboardData() {
     }
   }, []);
 
-  return { summary, trades, lessons, chartData, loading, toggleHalt };
+  return { summary, trades, positions, lessons, chartData, loading, toggleHalt };
 }
