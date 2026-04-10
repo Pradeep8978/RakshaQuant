@@ -45,11 +45,11 @@ def should_continue_after_regime(state: TradingState) -> Literal["strategy_selec
     return "strategy_selection"
 
 
-def should_continue_after_validation(state: TradingState) -> Literal["risk_compliance", "end"]:
+def should_continue_after_validation(state: TradingState) -> list[str] | str:
     """
-    Decide whether to continue to risk checks.
+    Decide whether to continue to signal intelligence parallel nodes.
     
-    Returns "end" if no signals were validated.
+    Returns ["prediction_analysis", "vision_analysis"] if signals exist, else "end".
     """
     validated_signals = state.get("validated_signals", [])
     
@@ -57,7 +57,7 @@ def should_continue_after_validation(state: TradingState) -> Literal["risk_compl
         logger.info("No validated signals - ending workflow")
         return "end"
     
-    return "risk_compliance"
+    return ["prediction_analysis", "vision_analysis"]
 
 
 def create_trading_graph(
@@ -127,22 +127,12 @@ def create_trading_graph(
     # ---------------------------------------------------------
     # PARALLEL STEP 2: Signal Intelligence (Fan-out)
     # ---------------------------------------------------------
-    # First, a conditional check: Do we have signals to analyze?
     workflow.add_conditional_edges(
         "signal_validation",
         should_continue_after_validation,
         {
-            "risk_compliance": "prediction_analysis", # Entry point 1
-            "end": END,
-        }
-    )
-    
-    # Entry point 2 for the same branch to enable parallel fan-out
-    workflow.add_conditional_edges(
-        "signal_validation",
-        should_continue_after_validation,
-        {
-            "risk_compliance": "vision_analysis", 
+            "prediction_analysis": "prediction_analysis",
+            "vision_analysis": "vision_analysis",
             "end": END,
         }
     )
