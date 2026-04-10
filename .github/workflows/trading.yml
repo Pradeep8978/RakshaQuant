@@ -1,0 +1,102 @@
+name: 🛡️ RakshaQuant Trading Bot
+
+on:
+  schedule:
+    # Runs at 9:10 AM IST (3:40 UTC) every Monday–Friday
+    # Gives 5 minutes to boot before market opens at 9:15 IST
+    - cron: "40 3 * * 1-5"
+
+  # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual run"
+        required: false
+        default: "Manual trigger"
+
+jobs:
+  trade:
+    name: Run Trading Session
+    runs-on: ubuntu-latest
+
+    # NSE session is ~6h 15min. Hard cap at 390 min to be safe.
+    timeout-minutes: 390
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python ────────────────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ── 3. Cache uv packages ─────────────────────────────────────────────────
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      # ── 4. Install uv & dependencies ─────────────────────────────────────────
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --no-dev
+
+      # ── 5. Create logs directory ─────────────────────────────────────────────
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      # ── 6. Run the trading bot ───────────────────────────────────────────────
+      - name: Run RakshaQuant
+        env:
+          # LLM
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+          # Broker
+          DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
+          DHAN_BASE_URL: "https://api.dhan.co/v2"
+
+          # Database
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+          # Observability
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: "RakshaQuant"
+          LANGSMITH_TRACING_V2: "true"
+
+          # Trading config
+          MARKET_DATA_SOURCE: "yfinance"
+          EXECUTION_MODE: "local_paper"
+          PAPER_WALLET_BALANCE: "1000000"
+          TRADING_MODE: "paper"
+          MAX_DAILY_TRADES: "50"
+          MAX_POSITION_SIZE: "100000"
+          DAILY_LOSS_LIMIT: "10000"
+          ENABLE_NEWS_ANALYSIS: "true"
+
+          # Telegram (optional — only works if secrets are set)
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ENABLED: "true"
+
+          # Python output unbuffered (important for live log streaming)
+          PYTHONUNBUFFERED: "1"
+
+        run: uv run python scripts/run_headless.py
+
+      # ── 7. Upload session logs as artifact ───────────────────────────────────
+      - name: Upload trading logs
+        if: always()   # Upload even if the bot crashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 30
