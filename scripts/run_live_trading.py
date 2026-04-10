@@ -255,11 +255,19 @@ async def run_live_trading():
                     thread_id=workflow_id,
                 )
                 
-                # Update dashboard with results
+                # Persist agent state to DB for Web Dashboard
                 regime = final_state.get("regime", "unknown")
                 confidence = final_state.get("regime_confidence", 0)
                 strategies = final_state.get("active_strategies", [])
                 
+                memory_db.set_state("latest_regime", regime)
+                memory_db.set_state("regime_confidence", str(confidence))
+                memory_db.set_state("active_strategies", ",".join(strategies))
+                
+                # Store some rejected/validated info as summary
+                memory_db.set_state("last_cycle_time", datetime.now().isoformat())
+                
+                # Update dashboard with results
                 dashboard.update_regime(regime, confidence, strategies)
                 live.update(create_dashboard_layout(dashboard.stats))
                 

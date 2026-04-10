@@ -7,6 +7,9 @@ export interface SummaryData {
   realized_pnl: number;
   unrealized_pnl: number;
   return_pct: number;
+  latest_regime: string;
+  regime_confidence: number;
+  active_strategies: string[];
   is_halted?: boolean;
 }
 

@@ -64,7 +64,10 @@ def _get_summary_data():
             "realized_pnl": stats.get("realized_pnl", 0),
             "unrealized_pnl": stats.get("unrealized_pnl", 0),
             "return_pct": stats.get("return_pct", 0),
-            "is_halted": memory_db.get_state("trading_halted") == "true"
+            "is_halted": memory_db.get_state("trading_halted") == "true",
+            "latest_regime": memory_db.get_state("latest_regime") or "Indeterminate",
+            "regime_confidence": float(memory_db.get_state("regime_confidence") or 0),
+            "active_strategies": (memory_db.get_state("active_strategies") or "None").split(",")
         }
     except Exception as e:
         return {"error": str(e)}
