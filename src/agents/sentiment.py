@@ -34,12 +34,12 @@ class SentimentSignal:
     
     def to_dict(self) -> dict[str, Any]:
         return {
-            "mood_index": self.mood_index,
+            "mood_index": int(self.mood_index),
             "mood_label": self.mood_label,
-            "news_score": self.news_score,
-            "volatility_score": self.volatility_score,
-            "breadth_score": self.breadth_score,
-            "confidence": self.confidence,
+            "news_score": float(self.news_score),
+            "volatility_score": float(self.volatility_score),
+            "breadth_score": float(self.breadth_score),
+            "confidence": float(self.confidence),
             "reasoning": self.reasoning,
             "timestamp": self.timestamp.isoformat(),
         }
@@ -252,12 +252,12 @@ class MarketSentimentAgent:
         logger.info(f"Market Sentiment: {mood_index}/100 ({mood_label})")
         
         return SentimentSignal(
-            mood_index=mood_index,
+            mood_index=int(mood_index),
             mood_label=mood_label,
-            news_score=news_sentiment,
-            volatility_score=vol_score,
-            breadth_score=breadth_score,
-            confidence=confidence,
+            news_score=float(news_sentiment),
+            volatility_score=float(vol_score),
+            breadth_score=float(breadth_score),
+            confidence=float(confidence),
             reasoning=reasoning,
         )
 

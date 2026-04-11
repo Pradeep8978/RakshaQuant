@@ -51,8 +51,8 @@ class PredictionSignal:
         return {
             "symbol": self.symbol,
             "direction": self.direction,
-            "confidence": self.confidence,
-            "predicted_change_pct": self.predicted_change_pct,
+            "confidence": float(self.confidence),
+            "predicted_change_pct": float(self.predicted_change_pct),
             "reasoning": self.reasoning,
             "timestamp": self.timestamp.isoformat(),
         }
@@ -236,8 +236,8 @@ class PredictionAgent:
             # Calculate confidence from model agreement
             pred_directions = [1 if p > 0 else -1 for p in predictions.values()]
             agreement = abs(sum(pred_directions)) / len(pred_directions)
-            avg_r2 = sum(scores.values()) / len(scores)
-            confidence = max(0.3, min(0.9, (agreement + avg_r2) / 2 + 0.2))
+            avg_r2 = float(sum(scores.values()) / len(scores))
+            confidence = float(max(0.3, min(0.9, (agreement + avg_r2) / 2 + 0.2)))
             
             # Determine direction
             direction = "up" if ensemble_pred > 0 else "down"
@@ -258,8 +258,8 @@ class PredictionAgent:
             return PredictionSignal(
                 symbol=symbol,
                 direction=direction,
-                confidence=confidence,
-                predicted_change_pct=ensemble_pred * 100,
+                confidence=float(confidence),
+                predicted_change_pct=float(ensemble_pred * 100),
                 reasoning=reasoning,
             )
             
@@ -293,7 +293,7 @@ class PredictionAgent:
             symbol=symbol,
             direction=direction,
             confidence=0.4,  # Low confidence for fallback
-            predicted_change_pct=recent_change * 100,
+            predicted_change_pct=float(recent_change * 100),
             reasoning=f"Fallback momentum prediction based on recent trend ({recent_change*100:+.2f}%)",
         )
 

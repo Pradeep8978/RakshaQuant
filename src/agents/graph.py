@@ -12,6 +12,7 @@ from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
 
 from .state import TradingState, create_initial_state
+from src.utils.serialization import sanitize_for_serialization
 from .market_regime import market_regime_node
 from .news_analyst import news_sentiment_node
 from .vision_analyst import vision_analyst_node
@@ -83,19 +84,30 @@ def create_trading_graph(
         Compiled StateGraph ready for execution
     """
     
+    def wrap_node(node_func):
+        """Helper to sanitize node outputs for serialization."""
+        async def wrapped(state: TradingState) -> dict[str, Any]:
+            import asyncio
+            if asyncio.iscoroutinefunction(node_func):
+                result = await node_func(state)
+            else:
+                result = node_func(state)
+            return sanitize_for_serialization(result)
+        return wrapped
+
     # Create the graph with TradingState
     workflow = StateGraph(TradingState)
     
-    # Add nodes
-    workflow.add_node("news_sentiment", news_sentiment_node)
-    workflow.add_node("market_mood", sentiment_analysis_node)
-    workflow.add_node("volume_analysis", volume_analyst_node)
-    workflow.add_node("market_regime", market_regime_node)
-    workflow.add_node("strategy_selection", strategy_selection_node)
-    workflow.add_node("signal_validation", signal_validation_node)
-    workflow.add_node("prediction_analysis", prediction_node)
-    workflow.add_node("vision_analysis", vision_analyst_node)
-    workflow.add_node("risk_compliance", risk_compliance_node)
+    # Add nodes with sanitization wrapper
+    workflow.add_node("news_sentiment", wrap_node(news_sentiment_node))
+    workflow.add_node("market_mood", wrap_node(sentiment_analysis_node))
+    workflow.add_node("volume_analysis", wrap_node(volume_analyst_node))
+    workflow.add_node("market_regime", wrap_node(market_regime_node))
+    workflow.add_node("strategy_selection", wrap_node(strategy_selection_node))
+    workflow.add_node("signal_validation", wrap_node(signal_validation_node))
+    workflow.add_node("prediction_analysis", wrap_node(prediction_node))
+    workflow.add_node("vision_analysis", wrap_node(vision_analyst_node))
+    workflow.add_node("risk_compliance", wrap_node(risk_compliance_node))
     
     # ---------------------------------------------------------
     # PARALLEL STEP 1: Context Gathering (Fan-out from START)
@@ -191,6 +203,9 @@ async def run_trading_cycle(
     state["memory_lessons"] = memory_lessons or []
     state["portfolio"] = portfolio or {"capital": 1000000, "positions": []}
     state["daily_stats"] = daily_stats or {"trades_count": 0, "profit_loss": 0, "max_drawdown": 0}
+    
+    # Sanitize initial state to remove numpy types
+    state = sanitize_for_serialization(state)
     
     # Configure for tracing
     config = {

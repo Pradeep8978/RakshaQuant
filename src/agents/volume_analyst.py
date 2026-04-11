@@ -70,10 +70,10 @@ class VolumeAnalyst:
                 
                 if last_close > last_open:
                     activity_label = "Institutional Accumulation"
-                    intensity = (last_vol - avg_vol) / std_vol
+                    intensity = float((last_vol - avg_vol) / std_vol)
                 else:
                     activity_label = "Institutional Distribution"
-                    intensity = (last_vol - avg_vol) / std_vol
+                    intensity = float((last_vol - avg_vol) / std_vol)
 
             # 5. Trend vs Volume Divergence
             price_change = df['close'].pct_change(5).iloc[-1]

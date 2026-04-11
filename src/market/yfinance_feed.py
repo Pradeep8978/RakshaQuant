@@ -210,7 +210,7 @@ class YFinanceFeed:
             return {
                 "symbol": "NIFTY50",
                 "last_price": float(latest["Close"]),
-                "change_percent": ((float(latest["Close"]) - prev_close) / prev_close * 100),
+                "change_percent": float(((float(latest["Close"]) - prev_close) / prev_close * 100)),
                 "high": float(latest["High"]),
                 "low": float(latest["Low"]),
                 "volume": int(latest["Volume"]),
