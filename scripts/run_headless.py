@@ -187,25 +187,33 @@ async def run_headless():
                 direction = "UP" if c.is_bullish else "DOWN"
                 logger.info(f"  Mover: {c.symbol} {c.change_percent:+.2f}% [{direction}]")
 
-            # Generate signals for top candidate
-            top = candidates[0]
-            indicators = quote_to_indicators(top)
-            signals = signal_engine.generate_signals(indicators)
+            # Generate signals for top candidates
+            all_signals = []
+            all_indicators = {}
+            
+            # Process top 5 candidates to find opportunities
+            for candidate in candidates[:5]:
+                indicators = quote_to_indicators(candidate)
+                all_indicators[candidate.symbol] = indicators.to_dict()
+                signals = signal_engine.generate_signals(indicators)
+                if signals:
+                    all_signals.extend(signals)
 
-            if not signals:
-                logger.info("No signals generated. Waiting...")
+            if not all_signals:
+                logger.info("No signals generated for any top candidates. Waiting...")
                 await asyncio.sleep(CYCLE_INTERVAL_SECONDS)
                 continue
 
-            for sig in signals:
+            for sig in all_signals:
                 logger.info(
                     f"  Signal: {sig.signal_type.value} {sig.symbol} "
                     f"[{sig.strategy.value}] conf={sig.confidence:.2f}"
                 )
 
-            # Memory context
+            # Memory context based on market sentiment
+            top_candidate = candidates[0]
             memory_lessons = memory_db.get_top_lessons_for_context(
-                regime="trending_up" if top.is_bullish else "trending_down",
+                regime="trending_up" if top_candidate.is_bullish else "trending_down",
                 strategies=["momentum", "trend_following"],
                 n=5,
             )
@@ -215,8 +223,8 @@ async def run_headless():
             final_state = await run_trading_cycle(
                 graph=graph,
                 market_data={s: q.to_dict() for s, q in quotes.items()},
-                indicators={top.symbol: indicators.to_dict()},
-                signals=[s.to_dict() for s in signals],
+                indicators=all_indicators,
+                signals=[s.to_dict() for s in all_signals],
                 memory_lessons=memory_lessons,
                 portfolio={"capital": balance, "positions": []},
                 daily_stats={

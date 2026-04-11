@@ -27,7 +27,7 @@ class VisionAnalyst:
         if self._llm is None:
             self._llm = ChatGroq(
                 api_key=self.settings.groq_api_key.get_secret_value(),
-                model_name="llama-3.2-11b-vision-preview",
+                model_name="llama-3.2-11b-vision-pixtral",
                 temperature=0.1,
             )
         return self._llm
@@ -86,25 +86,35 @@ async def vision_analyst_node(state: TradingState) -> dict[str, Any]:
     logger.info("Running Vision Analyst Agent")
     analyst = VisionAnalyst()
     
-    signals = state.get("signals", [])
+    # Analyze signals that passed preliminary validation
+    signals = state.get("validated_signals", [])
     if not signals:
-        return {"vision_analysis": "No signals to verify visually"}
+        logger.info("No validated signals for vision analysis")
+        return {"vision_analysis": {}}
 
-    top_signal = signals[0]
-    symbol = top_signal.get("symbol")
-    
-    # In a real scenario, we'd pull historical prices from market_data
-    # For now, we'll use a subset of recent prices
-    prices = [float(p) for p in state.get("market_data", {}).get(symbol, {}).get("history", [100.0] * 20)]
-    
-    b64_img = analyst.generate_chart_image(symbol, prices)
-    analysis = await analyst.analyze_chart(symbol, b64_img)
-    
-    return {
-        "vision_analysis": {
-            "symbol": symbol,
+    results = {}
+    # analyze up to 3 signals to manage API usage and latency
+    for signal in signals[:3]:
+        symbol = signal.get("symbol")
+        logger.info(f"Visualizing chart for {symbol}")
+        
+        # Pull history from market data
+        market_data = state.get("market_data", {}).get(symbol, {})
+        history = market_data.get("history", [])
+        
+        if not history or len(history) < 10:
+            logger.warning(f"Insufficient history for {symbol} vision analysis")
+            prices = [float(market_data.get("last_price", 100.0))] * 20
+        else:
+            prices = [float(p) for p in history]
+        
+        b64_img = analyst.generate_chart_image(symbol, prices)
+        analysis = await analyst.analyze_chart(symbol, b64_img)
+        
+        results[symbol] = {
             "pattern": analysis.get("pattern"),
             "confidence": analysis.get("confidence"),
             "reasoning": analysis.get("reasoning")
         }
-    }
+    
+    return {"vision_analysis": results}
