@@ -21,6 +21,7 @@ from src.config import get_settings
 from src.utils.rate_limiter import get_groq_limiter
 from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
 from src.utils.errors import RateLimitError
+from src.utils.json_utils import extract_json_from_response, clean_llm_json
 from .state import TradingState
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ Consider:
 - Don't be too aggressive - selecting 1-2 strategies is often better than all 4
 - Weight memory lessons heavily - past mistakes should inform current decisions
 
-Respond with JSON:
+Respond with ONLY a JSON object. No preamble or postamble.
 {
     "active_strategies": ["list", "of", "strategy", "names"],
     "reasoning": "Explanation of selection with specific reference to regime and lessons",
@@ -206,40 +207,29 @@ def _build_strategy_context(
 
 
 def _parse_strategy_response(content: str) -> dict[str, Any]:
-    """Parse strategy selection response."""
+    """Parse strategy selection response using robust utility."""
     
-    try:
-        content = content.strip()
+    defaults = {
+        "active_strategies": ["trend_following"],
+        "reasoning": "Failed to parse response",
+        "strategy_notes": {}
+    }
+    
+    data = extract_json_from_response(content)
+    if not data:
+        logger.warning(f"Failed to extract JSON from strategy response: {content[:100]}...")
+        return defaults
         
-        if "```json" in content:
-            start = content.find("```json") + 7
-            end = content.find("```", start)
-            content = content[start:end].strip()
-        elif "```" in content:
-            start = content.find("```") + 3
-            end = content.find("```", start)
-            content = content[start:end].strip()
+    result = clean_llm_json(data, defaults)
+    
+    # Validate strategies
+    valid_strategies = ["momentum", "mean_reversion", "breakout", "trend_following"]
+    result["active_strategies"] = [
+        s for s in result.get("active_strategies", [])
+        if s in valid_strategies
+    ]
+    
+    if not result["active_strategies"]:
+        result["active_strategies"] = ["trend_following"]
         
-        result = json.loads(content)
-        
-        # Validate strategies
-        valid_strategies = ["momentum", "mean_reversion", "breakout", "trend_following"]
-        result["active_strategies"] = [
-            s for s in result.get("active_strategies", [])
-            if s in valid_strategies
-        ]
-        
-        if not result["active_strategies"]:
-            result["active_strategies"] = ["trend_following"]
-        
-        if "reasoning" not in result:
-            result["reasoning"] = "No reasoning provided"
-        
-        return result
-        
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse strategy response: {e}")
-        return {
-            "active_strategies": ["trend_following"],
-            "reasoning": f"Parse error, defaulting to trend_following: {content[:200]}",
-        }
+    return result

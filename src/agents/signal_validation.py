@@ -21,6 +21,7 @@ from src.config import get_settings
 from src.utils.rate_limiter import get_groq_limiter
 from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
 from src.utils.errors import RateLimitError
+from src.utils.json_utils import extract_json_from_response, clean_llm_json
 from .state import TradingState
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ You will receive:
 - Raw signals with their details
 - Relevant memory lessons
 
-For EACH signal, respond with JSON:
+Respond with ONLY a JSON object. No preamble or postamble.
 {
     "validations": [
         {
@@ -259,62 +260,52 @@ def _parse_validation_response(
     content: str,
     original_signals: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Parse validation response and categorize signals."""
+    """Parse validation response using robust utility."""
     
     validated = []
     rejected = []
     
-    try:
-        content = content.strip()
+    data = extract_json_from_response(content)
+    if not data:
+        logger.warning(f"Failed to extract JSON from validation response: {content[:100]}...")
+        # Reject all on failure
+        for signal in original_signals:
+            signal["validation"] = {"decision": "reject", "reasoning": "Parse failure"}
+            rejected.append(signal)
+        return {"validated": [], "rejected": rejected}
         
-        if "```json" in content:
-            start = content.find("```json") + 7
-            end = content.find("```", start)
-            content = content[start:end].strip()
-        elif "```" in content:
-            start = content.find("```") + 3
-            end = content.find("```", start)
-            content = content[start:end].strip()
+    validations = data.get("validations", [])
+    
+    # Create lookup for original signals
+    signal_lookup = {s.get("signal_id"): s for s in original_signals}
+    
+    for validation in validations:
+        signal_id = validation.get("signal_id")
+        decision = validation.get("decision", "reject")
         
-        result = json.loads(content)
-        validations = result.get("validations", [])
-        
-        # Create lookup for original signals
-        signal_lookup = {s.get("signal_id"): s for s in original_signals}
-        
-        for validation in validations:
-            signal_id = validation.get("signal_id")
-            decision = validation.get("decision", "reject")
+        if signal_id in signal_lookup:
+            signal = signal_lookup[signal_id].copy()
+            signal["validation"] = validation
             
-            if signal_id in signal_lookup:
-                signal = signal_lookup[signal_id].copy()
-                signal["validation"] = validation
-                
-                # Apply modifications if approved
-                if decision == "approve":
-                    mods = validation.get("modifications", {})
+            # Apply modifications if approved
+            if decision == "approve":
+                mods = validation.get("modifications", {})
+                if isinstance(mods, dict):
                     if mods.get("stop_loss"):
                         signal["stop_loss"] = mods["stop_loss"]
                     if mods.get("target_price"):
                         signal["target_price"] = mods["target_price"]
                     if mods.get("position_size_pct"):
                         signal["position_size_pct"] = mods["position_size_pct"]
-                    validated.append(signal)
-                else:
-                    rejected.append(signal)
-        
-        # Any signals not in response are rejected
-        processed_ids = {v.get("signal_id") for v in validations}
-        for signal in original_signals:
-            if signal.get("signal_id") not in processed_ids:
-                signal["validation"] = {"decision": "reject", "reasoning": "Not processed"}
+                validated.append(signal)
+            else:
                 rejected.append(signal)
-        
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse validation response: {e}")
-        # Reject all on parse error
-        for signal in original_signals:
-            signal["validation"] = {"decision": "reject", "reasoning": "Parse error"}
-            rejected.append(signal)
     
+    # Any signals not in response are rejected
+    processed_ids = {v.get("signal_id") for v in validations if v.get("signal_id")}
+    for signal in original_signals:
+        if signal.get("signal_id") not in processed_ids:
+            signal["validation"] = {"decision": "reject", "reasoning": "Not processed by agent"}
+            rejected.append(signal)
+            
     return {"validated": validated, "rejected": rejected}

@@ -29,6 +29,7 @@ from src.config import get_settings
 from src.utils.cache import get_news_cache, get_sentiment_cache
 from src.utils.rate_limiter import get_groq_limiter
 from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
+from src.utils.json_utils import extract_json_from_response, clean_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -220,20 +221,15 @@ class NewsAnalyst:
             response = self._circuit_breaker.call(invoke_llm)
             content = response.content.strip()
             
-            # Parse JSON response
-            import json
+            # Use robust JSON extraction utility
+            defaults = {"sentiment": 0.0, "reasoning": "Extraction failed"}
+            data = extract_json_from_response(content)
             
-            # Handle markdown code blocks
-            if "```json" in content:
-                start = content.find("```json") + 7
-                end = content.find("```", start)
-                content = content[start:end].strip()
-            elif "```" in content:
-                start = content.find("```") + 3
-                end = content.find("```", start)
-                content = content[start:end].strip()
-            
-            result = json.loads(content)
+            if not data:
+                logger.warning(f"Could not parse sentiment response: {content[:100]}...")
+                return 0.0, "Parse failure"
+                
+            result = clean_llm_json(data, defaults)
             sentiment = float(result.get("sentiment", 0.0))
             reasoning = result.get("reasoning", "")
             
@@ -382,4 +378,5 @@ async def test_news_analyst():
 
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(test_news_analyst())

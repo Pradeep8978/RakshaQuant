@@ -22,6 +22,7 @@ from src.config import get_settings
 from src.utils.rate_limiter import get_groq_limiter
 from src.utils.circuit_breaker import get_groq_circuit_breaker, CircuitBreakerOpenError
 from src.utils.errors import RateLimitError, LLMResponseError
+from src.utils.json_utils import extract_json_from_response, clean_llm_json
 from .state import MarketRegime, TradingState
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ You will receive:
 2. Recent price action summary
 3. Any relevant memory lessons from past regime misclassifications
 
-Respond with a JSON object containing:
+Respond with ONLY a JSON object. No preamble or postamble.
 {
     "regime": "one of: trending_up, trending_down, ranging, volatile",
     "confidence": 0.0-1.0,
@@ -282,43 +283,25 @@ def _build_regime_context(
 
 
 def _parse_regime_response(content: str) -> dict[str, Any]:
-    """Parse the agent's JSON response."""
+    """Parse the agent's JSON response using robust utility."""
     
-    try:
-        # Try to extract JSON from the response
-        content = content.strip()
+    defaults = {
+        "regime": MarketRegime.UNKNOWN.value,
+        "confidence": 0.0,
+        "reasoning": "Failed to parse response",
+        "key_factors": []
+    }
+    
+    data = extract_json_from_response(content)
+    if not data:
+        logger.warning(f"Failed to extract JSON from regime response: {content[:200]}")
+        return defaults
         
-        # Handle markdown code blocks
-        if "```json" in content:
-            start = content.find("```json") + 7
-            end = content.find("```", start)
-            content = content[start:end].strip()
-        elif "```" in content:
-            start = content.find("```") + 3
-            end = content.find("```", start)
-            content = content[start:end].strip()
+    result = clean_llm_json(data, defaults)
+    
+    # Validate regime value explicitly
+    valid_regimes = [r.value for r in MarketRegime]
+    if result.get("regime") not in valid_regimes:
+        result["regime"] = MarketRegime.UNKNOWN.value
         
-        result = json.loads(content)
-        
-        # Validate regime value
-        valid_regimes = [r.value for r in MarketRegime]
-        if result.get("regime") not in valid_regimes:
-            result["regime"] = MarketRegime.UNKNOWN.value
-        
-        # Ensure confidence is in range
-        confidence = float(result.get("confidence", 0.5))
-        result["confidence"] = max(0.0, min(1.0, confidence))
-        
-        # Ensure reasoning exists
-        if "reasoning" not in result:
-            result["reasoning"] = "No reasoning provided"
-        
-        return result
-        
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse regime response as JSON: {e}")
-        return {
-            "regime": MarketRegime.UNKNOWN.value,
-            "confidence": 0.0,
-            "reasoning": f"Failed to parse response: {content[:200]}",
-        }
+    return result
